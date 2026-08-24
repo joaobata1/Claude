@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<title>Pré-visualização — Folha de reservas e Limpezas</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --sand:#F1ECDE; --paper:#FBF8F1; --ink:#232722; --ink-soft:#5B5F58; --atlantic:#1C3A4B; --line:#DCD5C4; --amber-bg:#FEF3E2; }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--sand);font-family:'Inter',sans-serif;color:var(--ink);padding:32px 0;}
+  .browser{max-width:1100px;margin:0 auto 48px;background:var(--paper);border-radius:10px;overflow:hidden;border:1px solid var(--line);box-shadow:0 12px 32px rgba(28,58,75,0.10);}
+  .chrome{background:#E8E2D2;padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);}
+  .dot-b{width:9px;height:9px;border-radius:50%;background:#CFC7B2;}
+  .url{margin-left:8px;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:4px 12px;font-size:12px;color:var(--ink-soft);flex:1;}
+  .label{text-align:center;font-size:13px;color:var(--ink-soft);margin:-24px 0 20px;}
+  .pad{padding:24px 28px;}
+  h1{font-family:'Fraunces',serif;font-weight:500;font-size:20px;margin:0 0 4px;}
+  .legend{display:flex;gap:18px;font-size:11.5px;color:var(--ink-soft);margin:14px 0;flex-wrap:wrap;}
+  .legend span{display:flex;align-items:center;gap:5px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;background:#F3EEE0;color:var(--ink-soft);font-size:10.5px;text-transform:uppercase;padding:9px 10px;letter-spacing:.03em;}
+  td{padding:9px 10px;border-top:1px solid var(--line);}
+  tr.turnover td{background:var(--amber-bg);}
+  .semaphore{width:11px;height:11px;border-radius:50%;display:inline-block;}
+  .g{background:#2E9E5B;} .r{background:#D14343;} .a{background:#E0A020;} .gray{background:#B4B2A9;}
+  .center{text-align:center;}
+  .wa{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:#166b41;background:#E4F5EA;border:1px solid #BFE5CD;border-radius:6px;padding:3px 9px;}
+  .msgbox{background:#F3EEE0;border:1px solid var(--line);border-radius:8px;padding:14px;font-family:monospace;font-size:12px;white-space:pre-wrap;color:var(--ink-soft);margin:16px 0;}
+  .btnrow{display:flex;gap:10px;}
+  .btn-green{background:#25A85C;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:500;}
+  .btn-out{background:#fff;border:1px solid var(--line);border-radius:6px;padding:9px 16px;font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="label">Backoffice — Folha de reservas</div>
+<div class="browser">
+  <div class="chrome"><span class="dot-b"></span><span class="dot-b"></span><span class="dot-b"></span><div class="url">🔒 aljezurmonteclerigo.pt/backoffice/reservas</div></div>
+  <div class="pad">
+    <h1>Folha de reservas</h1>
+    <div class="legend">
+      <span><span class="semaphore g"></span> OK</span>
+      <span><span class="semaphore a"></span> Parcial</span>
+      <span><span class="semaphore r"></span> Pendente</span>
+      <span><span class="semaphore gray"></span> Não aplicável</span>
+      <span>🧹 Limpeza obrigatória no dia (entrada e saída sem intervalo)</span>
+    </div>
+    <table>
+      <thead><tr>
+        <th>Check-in</th><th>Check-out</th><th>Origem</th><th>Hóspede</th><th>Telefone</th><th>Nº pessoas</th>
+        <th class="center">Pagamento</th><th class="center">Dados SIBA</th><th class="center">Submissão SIBA</th><th class="center">Chaves</th><th class="center">Limpeza</th><th class="center">Contacto</th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td>25/08</td><td>28/08</td><td>Site próprio</td><td>Sofia Martins</td><td>351 912 345 678</td><td>4</td>
+          <td class="center"><span class="semaphore g"></span></td>
+          <td class="center"><span class="semaphore g"></span></td>
+          <td class="center"><span class="semaphore gray"></span></td>
+          <td class="center"><span class="semaphore g"></span></td>
+          <td class="center">—</td>
+          <td class="center"><span class="wa">WhatsApp</span></td>
+        </tr>
+        <tr class="turnover">
+          <td>28/08</td><td>02/09</td><td>Airbnb</td><td>Hans Weber</td><td>49 170 1234567</td><td>2</td>
+          <td class="center"><span class="semaphore gray"></span></td>
+          <td class="center"><span class="semaphore a"></span></td>
+          <td class="center"><span class="semaphore r"></span></td>
+          <td class="center"><span class="semaphore r"></span></td>
+          <td class="center">🧹</td>
+          <td class="center"><span class="wa">WhatsApp</span></td>
+        </tr>
+        <tr>
+          <td>02/09</td><td>06/09</td><td>Booking.com</td><td>Claire Dubois</td><td>33 6 12 34 56 78</td><td>3</td>
+          <td class="center"><span class="semaphore gray"></span></td>
+          <td class="center"><span class="semaphore r"></span></td>
+          <td class="center"><span class="semaphore gray"></span></td>
+          <td class="center"><span class="semaphore r"></span></td>
+          <td class="center">—</td>
+          <td class="center"><span class="wa">WhatsApp</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="label">Backoffice — Tabela de limpezas</div>
+<div class="browser">
+  <div class="chrome"><span class="dot-b"></span><span class="dot-b"></span><span class="dot-b"></span><div class="url">🔒 aljezurmonteclerigo.pt/backoffice/limpeza</div></div>
+  <div class="pad">
+    <h1>Tabela de limpezas</h1>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin:4px 0 16px;">Resumo de reservas a partir de hoje, pronto a enviar para quem faz a limpeza.</p>
+    <table style="margin-bottom:16px;">
+      <thead><tr><th>Check-in</th><th>Check-out</th><th>Hóspede</th><th>Pessoas</th><th>Limpeza no dia</th></tr></thead>
+      <tbody>
+        <tr><td>25/08</td><td>28/08</td><td>Sofia Martins</td><td>4</td><td>—</td></tr>
+        <tr class="turnover"><td>28/08</td><td>02/09</td><td>Hans Weber</td><td>2</td><td>🧹 Sim</td></tr>
+        <tr><td>02/09</td><td>06/09</td><td>Claire Dubois</td><td>3</td><td>—</td></tr>
+      </tbody>
+    </table>
+    <div class="msgbox">Reservas — Aljezur Monte Clérigo (a partir de 22/08)
+
+• 25/08 a 28/08 — Sofia Martins — 4 pessoas
+• 28/08 a 02/09 — Hans Weber — 2 pessoas ⚠️ LIMPEZA NO PRÓPRIO DIA (saída e entrada)
+• 02/09 a 06/09 — Claire Dubois — 3 pessoas</div>
+    <div class="btnrow">
+      <button class="btn-green">Enviar por WhatsApp</button>
+      <button class="btn-out">Copiar texto</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
