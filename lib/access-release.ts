@@ -1,4 +1,4 @@
-import { db, getSetting } from "./db";
+import { sql, ensureSchema, getSetting } from "./db";
 import { createNukiAccessCode } from "./nuki";
 import { sendNukiCodeToGuest } from "./notifications";
 import { countCompleteGuests } from "./guests";
@@ -7,8 +7,8 @@ export type ReleaseStatus =
   | { released: true; nukiCode: string }
   | { released: false; reason: "already_sent" | "payment_pending" | "waiting_guest_data" };
 
-function requireGuestsBeforeCheckin(): boolean {
-  return getSetting("require_guests_before_checkin") === "true";
+async function requireGuestsBeforeCheckin(): Promise<boolean> {
+  return (await getSetting("require_guests_before_checkin")) === "true";
 }
 
 /**
@@ -26,7 +26,8 @@ function requireGuestsBeforeCheckin(): boolean {
  *   para efeitos de submissão ao SIBA).
  */
 export async function releaseAccessIfReady(bookingId: string): Promise<ReleaseStatus> {
-  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  await ensureSchema();
+  const [booking] = await sql`SELECT * FROM bookings WHERE id = ${bookingId}`;
   if (!booking) throw new Error("Reserva não encontrada.");
 
   if (booking.nuki_code_sent) {
@@ -38,8 +39,8 @@ export async function releaseAccessIfReady(bookingId: string): Promise<ReleaseSt
     return { released: false, reason: "payment_pending" };
   }
 
-  if (requireGuestsBeforeCheckin()) {
-    const complete = countCompleteGuests(bookingId);
+  if (await requireGuestsBeforeCheckin()) {
+    const complete = await countCompleteGuests(bookingId);
     if (complete < booking.guests_count) {
       return { released: false, reason: "waiting_guest_data" };
     }
@@ -61,7 +62,7 @@ export async function releaseAccessIfReady(bookingId: string): Promise<ReleaseSt
     nukiCode: pin,
   });
 
-  db.prepare("UPDATE bookings SET nuki_code_sent = 1 WHERE id = ?").run(bookingId);
+  await sql`UPDATE bookings SET nuki_code_sent = 1 WHERE id = ${bookingId}`;
 
   return { released: true, nukiCode: pin };
 }

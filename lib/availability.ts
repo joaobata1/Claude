@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { sql, ensureSchema } from "./db";
 
 function eachDate(checkin: string, checkout: string): string[] {
   const dates: string[] = [];
@@ -12,34 +12,33 @@ function eachDate(checkin: string, checkout: string): string[] {
 }
 
 /** Devolve true se o intervalo [checkin, checkout) está livre em todas as fontes */
-export function isRangeAvailable(checkin: string, checkout: string): boolean {
+export async function isRangeAvailable(checkin: string, checkout: string): Promise<boolean> {
+  await ensureSchema();
   const nights = eachDate(checkin, checkout);
   if (nights.length === 0) return false;
 
   // 1. Verifica reservas já confirmadas/pendentes no próprio site
-  const localOverlap = db
-    .prepare(
-      `SELECT COUNT(*) as c FROM bookings
-       WHERE payment_status IN ('paid', 'pending')
-       AND NOT (checkout <= ? OR checkin >= ?)`
-    )
-    .get(checkin, checkout) as { c: number };
-  if (localOverlap.c > 0) return false;
+  const [localOverlap] = await sql<{ c: number }[]>`
+    SELECT COUNT(*) as c FROM bookings
+    WHERE payment_status IN ('paid', 'pending')
+    AND NOT (checkout <= ${checkin} OR checkin >= ${checkout})
+  `;
+  if (Number(localOverlap.c) > 0) return false;
 
   // 2. Verifica datas bloqueadas vindas do iCal (Airbnb/Booking/VRBO)
-  const placeholders = nights.map(() => "?").join(",");
-  const blocked = db
-    .prepare(`SELECT COUNT(*) as c FROM blocked_dates WHERE date IN (${placeholders})`)
-    .get(...nights) as { c: number };
+  const [blocked] = await sql<{ c: number }[]>`
+    SELECT COUNT(*) as c FROM blocked_dates WHERE date IN ${sql(nights)}
+  `;
 
-  return blocked.c === 0;
+  return Number(blocked.c) === 0;
 }
 
-export function getBlockedDates(): string[] {
-  const rows = db.prepare("SELECT DISTINCT date FROM blocked_dates").all() as { date: string }[];
-  const local = db
-    .prepare("SELECT checkin, checkout FROM bookings WHERE payment_status IN ('paid','pending')")
-    .all() as { checkin: string; checkout: string }[];
+export async function getBlockedDates(): Promise<string[]> {
+  await ensureSchema();
+  const rows = await sql<{ date: string }[]>`SELECT DISTINCT date FROM blocked_dates`;
+  const local = await sql<{ checkin: string; checkout: string }[]>`
+    SELECT checkin, checkout FROM bookings WHERE payment_status IN ('paid','pending')
+  `;
 
   const set = new Set(rows.map((r) => r.date));
   for (const b of local) {

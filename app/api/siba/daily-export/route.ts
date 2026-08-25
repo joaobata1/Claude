@@ -15,6 +15,6 @@ export async function POST(req: NextRequest) {
 /** Permite consultar o relatório do dia sem submeter, para conferência manual */
 export async function GET(req: NextRequest) {
   const date = new URL(req.url).searchParams.get("date") ?? todayISO();
-  const report = generateDailyReport(date);
+  const report = await generateDailyReport(date);
   return new NextResponse(report, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }

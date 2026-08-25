@@ -28,9 +28,9 @@ export async function sendNukiCodeBySms(params: {
   checkout: string;
   nukiCode: string;
 }) {
-  const apiKey = getSetting("vonage_api_key");
-  const apiSecret = getSetting("vonage_api_secret");
-  const senderId = getSetting("vonage_sender_id") || "AljezurAL";
+  const apiKey = await getSetting("vonage_api_key");
+  const apiSecret = await getSetting("vonage_api_secret");
+  const senderId = (await getSetting("vonage_sender_id")) || "AljezurAL";
 
   if (!apiKey || !apiSecret) {
     console.warn("Vonage não configurado no backoffice — SMS não enviado.");
@@ -68,8 +68,8 @@ export async function sendNukiCodeByEmail(params: {
   checkout: string;
   nukiCode: string;
 }) {
-  const apiKey = getSetting("resend_api_key");
-  const fromEmail = getSetting("notification_from_email") || "reservas@aljezurmonteclerigo.pt";
+  const apiKey = await getSetting("resend_api_key");
+  const fromEmail = (await getSetting("notification_from_email")) || "reservas@aljezurmonteclerigo.pt";
 
   if (!apiKey) {
     console.warn("Resend não configurado no backoffice — email não enviado.");

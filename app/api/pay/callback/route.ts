@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { sql, ensureSchema } from "@/lib/db";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
 /**
@@ -17,13 +17,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "orderId em falta." }, { status: 400 });
   }
 
-  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  await ensureSchema();
+  const [booking] = await sql`SELECT * FROM bookings WHERE id = ${bookingId}`;
   if (!booking) {
     return NextResponse.json({ error: "Reserva não encontrada." }, { status: 404 });
   }
 
   if (status === "success" || status === "paid" || status === "000") {
-    db.prepare("UPDATE bookings SET payment_status = 'paid' WHERE id = ?").run(bookingId);
+    await sql`UPDATE bookings SET payment_status = 'paid' WHERE id = ${bookingId}`;
 
     try {
       const result = await releaseAccessIfReady(bookingId);
@@ -39,6 +40,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  db.prepare("UPDATE bookings SET payment_status = 'failed' WHERE id = ?").run(bookingId);
+  await sql`UPDATE bookings SET payment_status = 'failed' WHERE id = ${bookingId}`;
   return NextResponse.json({ ok: true, status: "failed_recorded" });
 }

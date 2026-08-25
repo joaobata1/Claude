@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { db } from "@/lib/db";
+import { sql, ensureSchema } from "@/lib/db";
 import { validateGuestsForSave, saveGuestsForBooking, GuestInput } from "@/lib/guests";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
@@ -39,29 +39,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: guestsError }, { status: 400 });
   }
 
+  await ensureSchema();
   const bookingId = randomUUID();
 
-  db.prepare(
-    `INSERT INTO bookings
-     (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count,
-      price_total, commission_amount, cleaning_cost, booking_reference, payment_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'not_applicable')`
-  ).run(
-    bookingId,
-    source,
-    guestName,
-    guestEmail ?? null,
-    guestPhone ?? null,
-    checkin,
-    checkout,
-    guestsCount ?? 1,
-    totalPrice ?? null,
-    commissionAmount ?? 0,
-    cleaningCost ?? 0,
-    bookingReference ?? null
-  );
+  await sql`
+    INSERT INTO bookings
+    (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count,
+     price_total, commission_amount, cleaning_cost, booking_reference, payment_status)
+    VALUES (${bookingId}, ${source}, ${guestName}, ${guestEmail ?? null}, ${guestPhone ?? null}, ${checkin}, ${checkout}, ${guestsCount ?? 1},
+     ${totalPrice ?? null}, ${commissionAmount ?? 0}, ${cleaningCost ?? 0}, ${bookingReference ?? null}, 'not_applicable')
+  `;
 
-  saveGuestsForBooking(bookingId, guestList);
+  await saveGuestsForBooking(bookingId, guestList);
 
   try {
     const release = await releaseAccessIfReady(bookingId);

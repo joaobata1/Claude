@@ -1,5 +1,5 @@
 import { buildSIBAXMLRequest, parseSIBAXMLResponse, GuestDocumentType } from "node-siba";
-import { db, getSetting } from "./db";
+import { sql, ensureSchema, getSetting } from "./db";
 
 /**
  * Integração real com o SIBA via SOAP (biblioteca node-siba), usando os
@@ -49,7 +49,7 @@ interface HotelUnitSettings {
   contactEmail: string;
 }
 
-function getHotelUnitSettings(): HotelUnitSettings | null {
+async function getHotelUnitSettings(): Promise<HotelUnitSettings | null> {
   const keys: (keyof HotelUnitSettings)[] = [
     "nipc", "establishment", "accessKey", "name", "abbreviation",
     "address", "location", "zipCode", "zipZone", "phone", "contactName", "contactEmail",
@@ -71,7 +71,7 @@ function getHotelUnitSettings(): HotelUnitSettings | null {
 
   const values: any = {};
   for (const key of keys) {
-    const v = getSetting(map[key]);
+    const v = await getSetting(map[key]);
     if (!v) return null; // configuração incompleta
     values[key] = v;
   }
@@ -79,21 +79,20 @@ function getHotelUnitSettings(): HotelUnitSettings | null {
 }
 
 /** Hóspedes estrangeiros com dados completos, com check-in na data indicada, ainda não submetidos */
-function getForeignGuestsPending(date: string) {
-  const rows = db
-    .prepare(
-      `SELECT g.*, b.id as booking_id, b.checkin, b.checkout
-       FROM guests g
-       JOIN bookings b ON b.id = g.booking_id
-       WHERE b.checkin = ? AND b.siba_submitted = 0`
-    )
-    .all(date) as any[];
+async function getForeignGuestsPending(date: string) {
+  await ensureSchema();
+  const rows = (await sql`
+    SELECT g.*, b.id as booking_id, b.checkin, b.checkout
+    FROM guests g
+    JOIN bookings b ON b.id = g.booking_id
+    WHERE b.checkin = ${date} AND b.siba_submitted = 0
+  `) as any[];
 
   return rows.filter((r) => r.nationality && !isPortuguese(r.nationality));
 }
 
-export function generateDailyReport(date: string): string {
-  const guests = getForeignGuestsPending(date);
+export async function generateDailyReport(date: string): Promise<string> {
+  const guests = await getForeignGuestsPending(date);
   if (guests.length === 0) return `Sem hóspedes estrangeiros para comunicar em ${date}.`;
 
   const lines = [`Boletim de Alojamento — check-ins em ${date} (apenas estrangeiros)`, ""];
@@ -106,12 +105,12 @@ export function generateDailyReport(date: string): string {
 }
 
 export async function submitDailySiba(date: string) {
-  const hotelUnit = getHotelUnitSettings();
+  const hotelUnit = await getHotelUnitSettings();
   if (!hotelUnit) {
     return { submitted: false, reason: "Dados da unidade hoteleira SIBA incompletos no backoffice." };
   }
 
-  const guests = getForeignGuestsPending(date);
+  const guests = await getForeignGuestsPending(date);
   if (guests.length === 0) {
     return { submitted: true, count: 0 };
   }
@@ -154,8 +153,9 @@ export async function submitDailySiba(date: string) {
   }
 
   const bookingIds = [...new Set(guests.map((g) => g.booking_id))];
-  const markDone = db.prepare("UPDATE bookings SET siba_submitted = 1 WHERE id = ?");
-  for (const id of bookingIds) markDone.run(id);
+  for (const id of bookingIds) {
+    await sql`UPDATE bookings SET siba_submitted = 1 WHERE id = ${id}`;
+  }
 
   return { submitted: true, count: guests.length };
 }

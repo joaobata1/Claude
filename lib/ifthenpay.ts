@@ -13,7 +13,7 @@ export async function createMbwayRequest(params: {
   amount: number;
   guestPhone: string; // formato 351#912345678
 }) {
-  const mbwayKey = getSetting("ifthenpay_mbway_key");
+  const mbwayKey = await getSetting("ifthenpay_mbway_key");
   if (!mbwayKey) throw new Error("Chave MB WAY não configurada no backoffice.");
 
   const res = await fetch("https://api.ifthenpay.com/spg/payment/mbway", {
@@ -38,7 +38,7 @@ export async function createCardPaymentLink(params: {
   amount: number;
   guestName: string;
 }) {
-  const gatewayKey = getSetting("ifthenpay_gateway_key");
+  const gatewayKey = await getSetting("ifthenpay_gateway_key");
   if (!gatewayKey) throw new Error("Chave de gateway (cartão) não configurada no backoffice.");
 
   const res = await fetch("https://ifthenpay.com/api/gateway/paybylink/init", {

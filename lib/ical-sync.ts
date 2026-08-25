@@ -1,5 +1,5 @@
 import ical from "node-ical";
-import { db, getSetting } from "./db";
+import { sql, ensureSchema, getSetting } from "./db";
 
 export interface IcalSource {
   id: string;
@@ -8,8 +8,8 @@ export interface IcalSource {
   commissionPercent?: number; // comissão do canal, ex: 15 para 15%
 }
 
-function getIcalSources(): IcalSource[] {
-  const raw = getSetting("ical_sources");
+async function getIcalSources(): Promise<IcalSource[]> {
+  const raw = await getSetting("ical_sources");
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -31,24 +31,25 @@ function eachDate(start: Date, end: Date): string[] {
 
 /** Corre periodicamente (cron / rota agendada) para importar disponibilidade de todos os links iCal configurados */
 export async function syncAllIcalSources() {
-  const sources = getIcalSources();
+  await ensureSchema();
+  const sources = await getIcalSources();
   const results: Record<string, { label: string; nights: number } | { label: string; error: string }> = {};
 
   for (const source of sources) {
     try {
       const events = await ical.async.fromURL(source.url);
-      db.prepare("DELETE FROM blocked_dates WHERE source = ?").run(source.id);
-
-      const insert = db.prepare(
-        "INSERT OR IGNORE INTO blocked_dates (id, source, date) VALUES (?, ?, ?)"
-      );
+      await sql`DELETE FROM blocked_dates WHERE source = ${source.id}`;
 
       let count = 0;
       for (const key in events) {
         const ev = events[key] as any;
         if (!ev || ev.type !== "VEVENT" || !ev.start || !ev.end) continue;
         for (const date of eachDate(ev.start, ev.end)) {
-          insert.run(`${source.id}-${date}-${crypto.randomUUID()}`, source.id, date);
+          await sql`
+            INSERT INTO blocked_dates (id, source, date)
+            VALUES (${`${source.id}-${date}-${crypto.randomUUID()}`}, ${source.id}, ${date})
+            ON CONFLICT (source, date) DO NOTHING
+          `;
           count++;
         }
       }
@@ -63,10 +64,9 @@ export async function syncAllIcalSources() {
 }
 
 /** Gera o feed .ics do próprio site para colar no Airbnb/Booking/VRBO/outros */
-export function generateOwnIcalFeed(): string {
-  const bookings = db
-    .prepare("SELECT * FROM bookings WHERE payment_status IN ('paid','pending')")
-    .all() as any[];
+export async function generateOwnIcalFeed(): Promise<string> {
+  await ensureSchema();
+  const bookings = await sql`SELECT * FROM bookings WHERE payment_status IN ('paid','pending')`;
 
   const lines = [
     "BEGIN:VCALENDAR",

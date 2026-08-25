@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { sql, ensureSchema } from "@/lib/db";
 import { validateGuestsForSave, saveGuestsForBooking, getGuestsForBooking, GuestInput } from "@/lib/guests";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ bookingId: string }> }) {
   const { bookingId } = await params;
-  const guests = getGuestsForBooking(bookingId);
+  const guests = await getGuestsForBooking(bookingId);
   return NextResponse.json({ guests });
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ bookingId: string }> }) {
   const { bookingId } = await params;
-  const booking = db.prepare("SELECT * FROM bookings WHERE id = ?").get(bookingId) as any;
+  await ensureSchema();
+  const [booking] = await sql`SELECT * FROM bookings WHERE id = ${bookingId}`;
   if (!booking) {
     return NextResponse.json({ error: "Reserva não encontrada." }, { status: 404 });
   }
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ boo
     return NextResponse.json({ error }, { status: 400 });
   }
 
-  const savedCount = saveGuestsForBooking(bookingId, guests);
+  const savedCount = await saveGuestsForBooking(bookingId, guests);
 
   // Se o pagamento já estava confirmado e só faltavam os dados dos hóspedes, liberta agora.
   const release = await releaseAccessIfReady(bookingId);

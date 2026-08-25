@@ -28,7 +28,7 @@ function formatDate(iso: string): string {
 }
 
 export async function GET() {
-  const bookings = getBookingsOverview();
+  const bookings = await getBookingsOverview();
 
   // Ordem de colunas EXATAMENTE igual à folha de referência do utilizador
   const headers = [

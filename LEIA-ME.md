@@ -1,6 +1,6 @@
 # Aljezur - Monte Clérigo T2 — Site de Reservas
 
-Projeto Next.js (TypeScript, Tailwind, SQLite) para gestão do apartamento sem depender
+Projeto Next.js (TypeScript, Tailwind, Postgres) para gestão do apartamento sem depender
 de channel managers pagos. Construído iterativamente — ver histórico da conversa para
 o raciocínio por trás de cada decisão.
 
@@ -75,15 +75,19 @@ o raciocínio por trás de cada decisão.
 ### 2. Infraestrutura
 - [ ] Domínio próprio
 - [ ] Hosting (Vercel é o mais simples para Next.js)
-- [ ] Migrar SQLite → base de dados hospedada (Turso ou Neon — planos gratuitos chegam
-      para 1 apartamento). **Atenção:** dados de teste locais (preços, reservas fictícias)
-      não passam automaticamente nesta migração
+- [x] Base de dados: Postgres (`lib/db.ts`, via biblioteca `postgres`). Já não usa
+      ficheiro SQLite local — funciona em hosting sem disco persistente (Vercel, etc.).
+      **Crie uma base de dados grátis** (Supabase ou Neon são as opções mais simples) e
+      **defina `DATABASE_URL`** nas variáveis de ambiente — ver `.env.example`. As
+      tabelas são criadas automaticamente no primeiro pedido (nada a correr à mão).
+      Em hosting sem servidor, use a connection string do "pooler" (não a ligação
+      direta) para não esgotar ligações à base de dados.
 - [ ] Cron job externo (ex: cron-job.org) a chamar `/api/ical/import` de hora a hora
 
 ### 3. Segurança — **obrigatório antes de publicar**
 - [x] Autenticação no `/backoffice` — protegido por palavra-passe (cookie de sessão
       assinado, 7 dias, `httpOnly`). Todas as páginas `/backoffice/*` e rotas
-      `/api/backoffice/*` passam pelo `middleware.ts`; sem sessão válida são
+      `/api/backoffice/*` passam pelo `proxy.ts`; sem sessão válida são
       redirecionadas para `/backoffice/login` (ou devolvem 401 nas rotas de API).
       **Defina `BACKOFFICE_PASSWORD` nas variáveis de ambiente do servidor** — ver
       `.env.example` — caso contrário o backoffice fica bloqueado (503) para todos,
@@ -105,9 +109,11 @@ o raciocínio por trás de cada decisão.
 # 1. Descompactar e instalar
 npm install
 
-# 1.5. Definir a palavra-passe do backoffice (obrigatório)
+# 1.5. Configurar variáveis obrigatórias
 cp .env.example .env.local
-# editar .env.local e definir BACKOFFICE_PASSWORD
+# editar .env.local e definir:
+#   BACKOFFICE_PASSWORD  (a palavra-passe de acesso ao /backoffice)
+#   DATABASE_URL          (connection string do Postgres — Supabase/Neon têm plano grátis)
 
 # 2. Testar localmente
 npm run dev
@@ -117,6 +123,7 @@ npm run dev
 # 3. Preencher o backoffice com as credenciais da checklist acima
 ```
 
-A autenticação do backoffice já está implementada — falta apenas definir
-`BACKOFFICE_PASSWORD` em produção. Antes de publicar com dados reais, resolva também
-os restantes pontos da secção 2 (infraestrutura) e faça os testes da secção 4.
+A autenticação do backoffice e a base de dados Postgres já estão implementadas —
+falta apenas definir `BACKOFFICE_PASSWORD` e `DATABASE_URL` em produção. Antes de
+publicar com dados reais, resolva também os restantes pontos da secção 2
+(domínio, hosting, cron do iCal) e faça os testes da secção 4.

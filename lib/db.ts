@@ -1,82 +1,96 @@
-import Database from "better-sqlite3";
-import path from "path";
+import postgres from "postgres";
 
-const dbPath = path.join(process.cwd(), "data", "booking.db");
-
-// Garante que a pasta 'data' existe
-import fs from "fs";
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-export const db = new Database(dbPath);
-db.pragma("journal_mode = WAL");
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS bookings (
-  id TEXT PRIMARY KEY,
-  source TEXT NOT NULL,              -- 'site' | 'airbnb' | 'booking' | 'vrbo'
-  guest_name TEXT NOT NULL,
-  guest_email TEXT,
-  guest_phone TEXT,
-  checkin TEXT NOT NULL,             -- YYYY-MM-DD
-  checkout TEXT NOT NULL,            -- YYYY-MM-DD
-  guests_count INTEGER DEFAULT 1,
-  price_total REAL,
-  commission_amount REAL DEFAULT 0,  -- comissão/taxas cobradas pelo canal (valor absoluto em €)
-  cleaning_cost REAL DEFAULT 0,      -- custo real da limpeza para esta estadia
-  booking_reference TEXT,            -- nº de reserva na plataforma de origem (se aplicável)
-  payment_status TEXT DEFAULT 'pending', -- pending | paid | failed | not_applicable
-  payment_method TEXT,               -- mbway | card | null (manual/OTA)
-  ifthenpay_request_id TEXT,
-  nuki_code TEXT,
-  nuki_code_sent INTEGER DEFAULT 0,
-  siba_submitted INTEGER DEFAULT 0,
-  created_at TEXT DEFAULT (datetime('now'))
-);
-
-CREATE TABLE IF NOT EXISTS guests (
-  id TEXT PRIMARY KEY,
-  booking_id TEXT NOT NULL REFERENCES bookings(id),
-  full_name TEXT NOT NULL,
-  nationality TEXT,
-  document_type TEXT,
-  document_number TEXT,
-  document_issuing_country TEXT,
-  residence_country TEXT,
-  birth_date TEXT,
-  is_lead_guest INTEGER DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
-  value TEXT
-);
-
-CREATE TABLE IF NOT EXISTS blocked_dates (
-  id TEXT PRIMARY KEY,
-  source TEXT NOT NULL,              -- id do link iCal (ver definição ical_sources) que originou este bloqueio
-  date TEXT NOT NULL,                -- YYYY-MM-DD, uma linha por noite bloqueada
-  UNIQUE(source, date)
-);
-CREATE TABLE IF NOT EXISTS daily_prices (
-  id TEXT PRIMARY KEY,
-  channel TEXT NOT NULL,             -- 'site' ou o id de um link iCal (ical_sources)
-  date TEXT NOT NULL,                -- YYYY-MM-DD
-  price REAL NOT NULL,               -- preço bruto visto nesse canal (ou o preço do site)
-  UNIQUE(channel, date)
-);
-`);
-
-// Migração segura: adiciona colunas novas a bases de dados criadas antes desta versão
-function ensureColumn(table: string, column: string, definition: string) {
-  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
-  if (!cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error(
+    "DATABASE_URL não está configurada — defina a connection string do Postgres (ex: Supabase) nas variáveis de ambiente."
+  );
 }
-ensureColumn("bookings", "commission_amount", "REAL DEFAULT 0");
-ensureColumn("bookings", "cleaning_cost", "REAL DEFAULT 0");
-ensureColumn("bookings", "booking_reference", "TEXT");
+
+// ssl "prefer": liga com TLS quando o servidor suporta (Supabase, produção em geral)
+// sem exigir configuração extra para bases de dados locais de teste sem TLS.
+// prepare:false: necessário para funcionar através do connection pooler do Supabase (pgbouncer).
+export const sql = postgres(connectionString, { ssl: "prefer", prepare: false });
+
+let schemaReady: Promise<void> | null = null;
+
+/** Garante que as tabelas e colunas existem. Idempotente e memorizado — seguro chamar em cada pedido. */
+export function ensureSchema(): Promise<void> {
+  if (!schemaReady) schemaReady = initSchema();
+  return schemaReady;
+}
+
+async function initSchema() {
+  await sql`
+    CREATE TABLE IF NOT EXISTS bookings (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      guest_name TEXT NOT NULL,
+      guest_email TEXT,
+      guest_phone TEXT,
+      checkin TEXT NOT NULL,
+      checkout TEXT NOT NULL,
+      guests_count INTEGER DEFAULT 1,
+      price_total REAL,
+      commission_amount REAL DEFAULT 0,
+      cleaning_cost REAL DEFAULT 0,
+      booking_reference TEXT,
+      payment_status TEXT DEFAULT 'pending',
+      payment_method TEXT,
+      ifthenpay_request_id TEXT,
+      nuki_code TEXT,
+      nuki_code_sent INTEGER DEFAULT 0,
+      siba_submitted INTEGER DEFAULT 0,
+      created_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS guests (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT NOT NULL REFERENCES bookings(id),
+      full_name TEXT NOT NULL,
+      nationality TEXT,
+      document_type TEXT,
+      document_number TEXT,
+      document_issuing_country TEXT,
+      residence_country TEXT,
+      birth_date TEXT,
+      is_lead_guest INTEGER DEFAULT 0
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS blocked_dates (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      date TEXT NOT NULL,
+      UNIQUE (source, date)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS daily_prices (
+      id TEXT PRIMARY KEY,
+      channel TEXT NOT NULL,
+      date TEXT NOT NULL,
+      price REAL NOT NULL,
+      UNIQUE (channel, date)
+    )
+  `;
+
+  // Migração segura: adiciona colunas novas a bases de dados criadas antes desta versão
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_amount REAL DEFAULT 0`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cleaning_cost REAL DEFAULT 0`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_reference TEXT`;
+}
 
 // Chaves de definições geridas no backoffice (nunca hardcoded no código)
 export const SETTINGS_KEYS = [
@@ -113,15 +127,16 @@ export const SETTINGS_KEYS = [
   "ai_vision_model", // ex: claude-sonnet-5 — consultar docs.claude.com para o modelo mais recente
 ] as const;
 
-export function getSetting(key: string): string | null {
-  const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(key) as
-    | { value: string }
-    | undefined;
-  return row?.value ?? null;
+export async function getSetting(key: string): Promise<string | null> {
+  await ensureSchema();
+  const rows = await sql<{ value: string }[]>`SELECT value FROM settings WHERE key = ${key}`;
+  return rows[0]?.value ?? null;
 }
 
-export function setSetting(key: string, value: string) {
-  db.prepare(
-    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
-  ).run(key, value);
+export async function setSetting(key: string, value: string): Promise<void> {
+  await ensureSchema();
+  await sql`
+    INSERT INTO settings (key, value) VALUES (${key}, ${value})
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value
+  `;
 }

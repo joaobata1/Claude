@@ -52,8 +52,8 @@ export async function parseBookingScreenshot(
   imageBase64: string,
   mediaType: string
 ): Promise<ParsedBookingScreenshot> {
-  const apiKey = getSetting("ai_vision_api_key");
-  const model = getSetting("ai_vision_model") || "claude-sonnet-5";
+  const apiKey = await getSetting("ai_vision_api_key");
+  const model = (await getSetting("ai_vision_model")) || "claude-sonnet-5";
 
   if (!apiKey) {
     throw new Error("Chave da API de leitura de imagens não configurada no backoffice.");

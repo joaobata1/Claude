@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { sql, ensureSchema } from "./db";
 import { computeTurnoverFlags, TurnoverFlags } from "./turnover";
 
 export type SemaphoreColor = "green" | "red" | "amber" | "gray";
@@ -85,17 +85,16 @@ function daysUntilNext(thisCheckout: string, allBookings: { checkin: string }[])
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
-export function getBookingsOverview(): BookingOverviewRow[] {
-  const bookings = db
-    .prepare("SELECT * FROM bookings ORDER BY checkin ASC")
-    .all() as any[];
+export async function getBookingsOverview(): Promise<BookingOverviewRow[]> {
+  await ensureSchema();
+  const bookings = (await sql`SELECT * FROM bookings ORDER BY checkin ASC`) as any[];
 
   const turnoverMap = computeTurnoverFlags(
     bookings.map((b) => ({ id: b.id, checkin: b.checkin, checkout: b.checkout }))
   );
 
-  return bookings.map((b) => {
-    const guests = db.prepare("SELECT * FROM guests WHERE booking_id = ?").all(b.id) as any[];
+  return Promise.all(bookings.map(async (b) => {
+    const guests = (await sql`SELECT * FROM guests WHERE booking_id = ${b.id}`) as any[];
     const guestsCompleteCount = guests.length; // só se guardam hóspedes completos, ver lib/guests.ts
     const hasForeignGuests = guests.some((g) => !PORTUGUESE_VARIANTS.has((g.nationality || "").trim().toLowerCase()));
     const turnover = turnoverMap[b.id] ?? { arrivalSameDayAsOtherCheckout: false, departureSameDayAsOtherCheckin: false };
@@ -150,5 +149,5 @@ export function getBookingsOverview(): BookingOverviewRow[] {
       adultsCount,
       childrenCount,
     };
-  });
+  }));
 }

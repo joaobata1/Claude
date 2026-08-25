@@ -1,4 +1,4 @@
-import { getSetting, db } from "./db";
+import { getSetting, sql, ensureSchema } from "./db";
 
 /**
  * Nuki Web API: https://developer.nuki.io/
@@ -19,8 +19,8 @@ export async function createNukiAccessCode(params: {
   checkinHour?: number; // default 16h
   checkoutHour?: number; // default 12h
 }) {
-  const apiToken = getSetting("nuki_api_token");
-  const smartlockId = getSetting("nuki_smartlock_id");
+  const apiToken = await getSetting("nuki_api_token");
+  const smartlockId = await getSetting("nuki_smartlock_id");
   if (!apiToken || !smartlockId) {
     throw new Error("Token Nuki ou Smart Lock ID não configurados no backoffice.");
   }
@@ -50,7 +50,8 @@ export async function createNukiAccessCode(params: {
   }
 
   // Guarda o código na reserva
-  db.prepare("UPDATE bookings SET nuki_code = ? WHERE id = ?").run(pin, params.bookingId);
+  await ensureSchema();
+  await sql`UPDATE bookings SET nuki_code = ${pin} WHERE id = ${params.bookingId}`;
 
   return pin;
 }

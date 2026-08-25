@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { db } from "./db";
+import { sql, ensureSchema } from "./db";
 
 /**
  * Campos do Boletim de Alojamento (SIBA - AIMA). O preenchimento pode ser
@@ -51,35 +51,28 @@ export function validateGuestsForSave(guests: GuestInput[]): string | null {
 }
 
 /** Guarda apenas os hóspedes cujos dados estão completos; ignora os deixados em branco */
-export function saveGuestsForBooking(bookingId: string, guests: GuestInput[]) {
-  db.prepare("DELETE FROM guests WHERE booking_id = ?").run(bookingId);
+export async function saveGuestsForBooking(bookingId: string, guests: GuestInput[]): Promise<number> {
+  await ensureSchema();
+  await sql`DELETE FROM guests WHERE booking_id = ${bookingId}`;
 
   const complete = guests.filter(isGuestComplete);
-  const insert = db.prepare(
-    `INSERT INTO guests (id, booking_id, full_name, nationality, document_type, document_number, birth_date, is_lead_guest)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  );
   for (const g of complete) {
-    insert.run(
-      randomUUID(),
-      bookingId,
-      g.fullName.trim(),
-      g.nationality.trim(),
-      g.documentType,
-      g.documentNumber.trim(),
-      g.birthDate,
-      g.isLeadGuest ? 1 : 0
-    );
+    await sql`
+      INSERT INTO guests (id, booking_id, full_name, nationality, document_type, document_number, birth_date, is_lead_guest)
+      VALUES (${randomUUID()}, ${bookingId}, ${g.fullName.trim()}, ${g.nationality.trim()}, ${g.documentType}, ${g.documentNumber.trim()}, ${g.birthDate}, ${g.isLeadGuest ? 1 : 0})
+    `;
   }
   return complete.length;
 }
 
-export function getGuestsForBooking(bookingId: string) {
-  return db.prepare("SELECT * FROM guests WHERE booking_id = ?").all(bookingId) as any[];
+export async function getGuestsForBooking(bookingId: string) {
+  await ensureSchema();
+  return sql`SELECT * FROM guests WHERE booking_id = ${bookingId}`;
 }
 
 /** Quantos hóspedes completos já estão guardados para esta reserva */
-export function countCompleteGuests(bookingId: string): number {
-  const row = db.prepare("SELECT COUNT(*) as c FROM guests WHERE booking_id = ?").get(bookingId) as { c: number };
-  return row.c;
+export async function countCompleteGuests(bookingId: string): Promise<number> {
+  await ensureSchema();
+  const [row] = await sql<{ c: number }[]>`SELECT COUNT(*) as c FROM guests WHERE booking_id = ${bookingId}`;
+  return Number(row.c);
 }
