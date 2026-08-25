@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSetting, setSetting, SETTINGS_KEYS } from "@/lib/db";
+import { getAllSettings, setSetting, SETTINGS_KEYS } from "@/lib/db";
 
 export async function GET() {
+  const all = await getAllSettings();
   const values: Record<string, string | null> = {};
-  for (const key of SETTINGS_KEYS) values[key] = await getSetting(key);
+  for (const key of SETTINGS_KEYS) values[key] = all[key] ?? null;
   return NextResponse.json(values);
 }
 

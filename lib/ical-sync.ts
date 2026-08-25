@@ -40,20 +40,21 @@ export async function syncAllIcalSources() {
       const events = await ical.async.fromURL(source.url);
       await sql`DELETE FROM blocked_dates WHERE source = ${source.id}`;
 
-      let count = 0;
+      const rows: { id: string; source: string; date: string }[] = [];
       for (const key in events) {
         const ev = events[key] as any;
         if (!ev || ev.type !== "VEVENT" || !ev.start || !ev.end) continue;
         for (const date of eachDate(ev.start, ev.end)) {
-          await sql`
-            INSERT INTO blocked_dates (id, source, date)
-            VALUES (${`${source.id}-${date}-${crypto.randomUUID()}`}, ${source.id}, ${date})
-            ON CONFLICT (source, date) DO NOTHING
-          `;
-          count++;
+          rows.push({ id: `${source.id}-${date}-${crypto.randomUUID()}`, source: source.id, date });
         }
       }
-      results[source.id] = { label: source.label || source.id, nights: count };
+      if (rows.length > 0) {
+        await sql`
+          INSERT INTO blocked_dates ${sql(rows, "id", "source", "date")}
+          ON CONFLICT (source, date) DO NOTHING
+        `;
+      }
+      results[source.id] = { label: source.label || source.id, nights: rows.length };
     } catch (err: any) {
       console.error(`Erro ao importar iCal de ${source.label}:`, err);
       results[source.id] = { label: source.label || source.id, error: err.message ?? "erro desconhecido" };

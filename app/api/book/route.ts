@@ -4,16 +4,14 @@ import { sql, ensureSchema, getSetting } from "@/lib/db";
 import { isRangeAvailable } from "@/lib/availability";
 import { createMbwayRequest, createCardPaymentLink } from "@/lib/ifthenpay";
 
+class DatesUnavailableError extends Error {}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { checkin, checkout, guestsCount, guestName, guestEmail, guestPhone, paymentMethod } = body;
 
   if (!checkin || !checkout || !guestName || !guestPhone || !paymentMethod) {
     return NextResponse.json({ error: "Dados em falta." }, { status: 400 });
-  }
-
-  if (!(await isRangeAvailable(checkin, checkout))) {
-    return NextResponse.json({ error: "Datas indisponíveis." }, { status: 409 });
   }
 
   const nights =
@@ -25,11 +23,28 @@ export async function POST(req: NextRequest) {
   await ensureSchema();
   const bookingId = randomUUID();
 
-  await sql`
-    INSERT INTO bookings
-    (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count, price_total, cleaning_cost, payment_status, payment_method)
-    VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
-  `;
+  // Verificação de disponibilidade + escrita da reserva na mesma transação serializable:
+  // evita que duas reservas em simultâneo para as mesmas datas passem ambas a verificação
+  // antes de qualquer uma delas ser gravada (double-booking).
+  try {
+    await sql.begin("isolation level serializable", async (tx) => {
+      if (!(await isRangeAvailable(checkin, checkout, tx))) {
+        throw new DatesUnavailableError();
+      }
+      await tx`
+        INSERT INTO bookings
+        (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count, price_total, cleaning_cost, payment_status, payment_method)
+        VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
+      `;
+    });
+  } catch (err: any) {
+    // 40001 = serialization_failure — a Postgres deteta o conflito com outra reserva em
+    // curso na mesma transação e recusa fazer commit; tratamos como "não disponível".
+    if (err instanceof DatesUnavailableError || err?.code === "40001") {
+      return NextResponse.json({ error: "Datas indisponíveis." }, { status: 409 });
+    }
+    throw err;
+  }
 
   try {
     if (paymentMethod === "mbway") {

@@ -16,7 +16,14 @@ let schemaReady: Promise<void> | null = null;
 
 /** Garante que as tabelas e colunas existem. Idempotente e memorizado — seguro chamar em cada pedido. */
 export function ensureSchema(): Promise<void> {
-  if (!schemaReady) schemaReady = initSchema();
+  if (!schemaReady) {
+    schemaReady = initSchema().catch((err) => {
+      // Falha transitória (ex: BD momentaneamente inacessível no arranque) não deve
+      // bloquear todos os pedidos seguintes — permite nova tentativa no próximo.
+      schemaReady = null;
+      throw err;
+    });
+  }
   return schemaReady;
 }
 
@@ -131,6 +138,15 @@ export async function getSetting(key: string): Promise<string | null> {
   await ensureSchema();
   const rows = await sql<{ value: string }[]>`SELECT value FROM settings WHERE key = ${key}`;
   return rows[0]?.value ?? null;
+}
+
+/** Todas as definições guardadas, numa única query (ex: para preencher o formulário do backoffice). */
+export async function getAllSettings(): Promise<Record<string, string>> {
+  await ensureSchema();
+  const rows = await sql<{ key: string; value: string }[]>`SELECT key, value FROM settings`;
+  const map: Record<string, string> = {};
+  for (const row of rows) map[row.key] = row.value;
+  return map;
 }
 
 export async function setSetting(key: string, value: string): Promise<void> {

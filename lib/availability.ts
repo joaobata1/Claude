@@ -1,3 +1,4 @@
+import postgres from "postgres";
 import { sql, ensureSchema } from "./db";
 
 function eachDate(checkin: string, checkout: string): string[] {
@@ -11,14 +12,23 @@ function eachDate(checkin: string, checkout: string): string[] {
   return dates;
 }
 
-/** Devolve true se o intervalo [checkin, checkout) está livre em todas as fontes */
-export async function isRangeAvailable(checkin: string, checkout: string): Promise<boolean> {
+/**
+ * Devolve true se o intervalo [checkin, checkout) está livre em todas as fontes.
+ * Aceita opcionalmente um cliente ligado a uma transação (ver app/api/book/route.ts) —
+ * assim a verificação e a escrita da reserva ficam atómicas, evitando que duas reservas
+ * em simultâneo passem ambas a verificação antes de qualquer uma delas ser gravada.
+ */
+export async function isRangeAvailable(
+  checkin: string,
+  checkout: string,
+  client: postgres.Sql | postgres.TransactionSql = sql
+): Promise<boolean> {
   await ensureSchema();
   const nights = eachDate(checkin, checkout);
   if (nights.length === 0) return false;
 
   // 1. Verifica reservas já confirmadas/pendentes no próprio site
-  const [localOverlap] = await sql<{ c: number }[]>`
+  const [localOverlap] = await client<{ c: number }[]>`
     SELECT COUNT(*) as c FROM bookings
     WHERE payment_status IN ('paid', 'pending')
     AND NOT (checkout <= ${checkin} OR checkin >= ${checkout})
@@ -26,8 +36,8 @@ export async function isRangeAvailable(checkin: string, checkout: string): Promi
   if (Number(localOverlap.c) > 0) return false;
 
   // 2. Verifica datas bloqueadas vindas do iCal (Airbnb/Booking/VRBO)
-  const [blocked] = await sql<{ c: number }[]>`
-    SELECT COUNT(*) as c FROM blocked_dates WHERE date IN ${sql(nights)}
+  const [blocked] = await client<{ c: number }[]>`
+    SELECT COUNT(*) as c FROM blocked_dates WHERE date IN ${client(nights)}
   `;
 
   return Number(blocked.c) === 0;

@@ -89,12 +89,24 @@ export async function getBookingsOverview(): Promise<BookingOverviewRow[]> {
   await ensureSchema();
   const bookings = (await sql`SELECT * FROM bookings ORDER BY checkin ASC`) as any[];
 
+  const bookingIds = bookings.map((b) => b.id);
+  const allGuests =
+    bookingIds.length > 0
+      ? ((await sql`SELECT * FROM guests WHERE booking_id IN ${sql(bookingIds)}`) as any[])
+      : [];
+  const guestsByBooking = new Map<string, any[]>();
+  for (const g of allGuests) {
+    const list = guestsByBooking.get(g.booking_id) ?? [];
+    list.push(g);
+    guestsByBooking.set(g.booking_id, list);
+  }
+
   const turnoverMap = computeTurnoverFlags(
     bookings.map((b) => ({ id: b.id, checkin: b.checkin, checkout: b.checkout }))
   );
 
-  return Promise.all(bookings.map(async (b) => {
-    const guests = (await sql`SELECT * FROM guests WHERE booking_id = ${b.id}`) as any[];
+  return bookings.map((b) => {
+    const guests = guestsByBooking.get(b.id) ?? [];
     const guestsCompleteCount = guests.length; // só se guardam hóspedes completos, ver lib/guests.ts
     const hasForeignGuests = guests.some((g) => !PORTUGUESE_VARIANTS.has((g.nationality || "").trim().toLowerCase()));
     const turnover = turnoverMap[b.id] ?? { arrivalSameDayAsOtherCheckout: false, departureSameDayAsOtherCheckin: false };
@@ -149,5 +161,5 @@ export async function getBookingsOverview(): Promise<BookingOverviewRow[]> {
       adultsCount,
       childrenCount,
     };
-  }));
+  });
 }
