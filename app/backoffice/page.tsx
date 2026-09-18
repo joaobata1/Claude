@@ -5,7 +5,9 @@ import type { IcalSource } from "@/lib/ical-sync";
 
 const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string }> = {
   nuki_api_token: { label: "Nuki - API Token", type: "password" },
-  nuki_smartlock_id: { label: "Nuki - Smart Lock ID" },
+  nuki_smartlock_id: { label: "Nuki - Smart Lock ID", hint: "ID numérico do Nuki Web (não o código de 8 caracteres do dispositivo)" },
+  nuki_checkin_hour: { label: "Hora de início do código (check-in)", type: "number", hint: "0-23, ex: 16" },
+  nuki_checkout_hour: { label: "Hora de fim do código (check-out)", type: "number", hint: "0-23, ex: 12" },
   ifthenpay_mbway_key: { label: "ifthenpay - Chave MB WAY", type: "password" },
   ifthenpay_gateway_key: { label: "ifthenpay - Chave Gateway (Cartão)", type: "password" },
   price_per_night: { label: "Preço por noite (€)" },
@@ -68,7 +70,7 @@ const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   { id: "ical", label: "iCal", fields: [] },
   { id: "mensagens", label: "Mensagens", fields: [] },
   { id: "regras", label: "Regras & Preços", fields: ["price_per_night", "cleaning_fee", "cleaning_contact_phone"] },
-  { id: "nuki", label: "Nuki", fields: ["nuki_api_token", "nuki_smartlock_id"] },
+  { id: "nuki", label: "Nuki", fields: ["nuki_api_token", "nuki_smartlock_id", "nuki_checkin_hour", "nuki_checkout_hour"] },
   { id: "pagamentos", label: "Pagamentos", fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key"] },
   {
     id: "notificacoes",

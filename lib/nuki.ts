@@ -26,8 +26,10 @@ export async function createNukiAccessCode(params: {
   }
 
   const pin = randomPin();
-  const allowedFrom = new Date(`${params.checkinDate}T${String(params.checkinHour ?? 16).padStart(2, "0")}:00:00`);
-  const allowedUntil = new Date(`${params.checkoutDate}T${String(params.checkoutHour ?? 12).padStart(2, "0")}:00:00`);
+  const checkinHour = params.checkinHour ?? Number((await getSetting("nuki_checkin_hour")) || 16);
+  const checkoutHour = params.checkoutHour ?? Number((await getSetting("nuki_checkout_hour")) || 12);
+  const allowedFrom = new Date(`${params.checkinDate}T${String(checkinHour).padStart(2, "0")}:00:00`);
+  const allowedUntil = new Date(`${params.checkoutDate}T${String(checkoutHour).padStart(2, "0")}:00:00`);
 
   const res = await fetch(`https://api.nuki.io/smartlock/${smartlockId}/auth`, {
     method: "PUT",

@@ -129,6 +129,8 @@ export const SETTINGS_KEYS = [
   "ical_sources", // JSON: [{ id, label, url }] — lista dinâmica, tantos links quantos precisar
   "nuki_api_token",
   "nuki_smartlock_id",
+  "nuki_checkin_hour", // hora de início da validade do código (0-23), ex: 16
+  "nuki_checkout_hour", // hora de fim da validade do código (0-23), ex: 12
   "ifthenpay_mbway_key",
   "ifthenpay_gateway_key",
   "price_per_night",
