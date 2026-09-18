@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
+import { parseExcelPaste, type ParsedImportRow } from "@/lib/excel-paste-parser";
+
+const SOURCE_LABEL: Record<string, string> = { airbnb: "Airbnb", booking: "Booking", vrbo: "VRBO", outros: "Outros" };
 
 export default function NovaReserva() {
   const [manual, setManual] = useState({
@@ -21,6 +24,57 @@ export default function NovaReserva() {
   const { guests, resize, update } = useGuestForm(manual.guestsCount);
   const [parsingImage, setParsingImage] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+
+  const [pasteText, setPasteText] = useState("");
+  const [importPreview, setImportPreview] = useState<ParsedImportRow[] | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  function analyzePaste() {
+    setImportResult(null);
+    const parsed = parseExcelPaste(pasteText);
+    setImportPreview(parsed);
+  }
+
+  async function confirmImport() {
+    if (!importPreview) return;
+    const validRows = importPreview.filter((r) => r.errors.length === 0);
+    if (validRows.length === 0) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await fetch("/api/backoffice/manual-booking/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookings: validRows.map((r) => ({
+            source: r.source,
+            guestName: r.guestName,
+            guestPhone: r.guestPhone || undefined,
+            checkin: r.checkin,
+            checkout: r.checkout,
+            guestsCount: r.guestsCount,
+            totalPrice: r.totalPrice,
+            commissionAmount: r.commissionAmount,
+            cleaningCost: r.cleaningCost,
+            bookingReference: r.bookingReference || undefined,
+          })),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportResult(data.error ?? "Erro ao importar.");
+      } else {
+        const failMsg = data.errors?.length ? ` (${data.errors.length} falharam)` : "";
+        setImportResult(`${data.created} reserva(s) importada(s) com sucesso${failMsg}.`);
+        setPasteText("");
+        setImportPreview(null);
+      }
+    } catch {
+      setImportResult("Erro de ligação ao importar.");
+    }
+    setImporting(false);
+  }
 
   function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
     return new Promise((resolve, reject) => {
@@ -277,6 +331,75 @@ export default function NovaReserva() {
         Registar e gerar código Nuki
       </button>
       {manualResult && <p className="text-sm mt-2">{manualResult}</p>}
+
+      <section className="border-t mt-10 pt-8">
+        <h2 className="text-lg font-medium mb-1">Importar reservas coladas do Excel</h2>
+        <p className="text-sm text-gray-500 mb-3">
+          Copie as linhas da sua folha (com o cabeçalho: Nome, Contacto, Check in, Check Out, Adultos, Crianças,
+          Plataforma, RESERVA, Contacto, Valor, Comissão, Limpeza) e cole aqui. Estas reservas ficam registadas
+          mas <strong>não enviam código Nuki nem SMS/email automaticamente</strong> — use a reserva manual normal
+          acima se precisar de enviar a chave para alguma delas.
+        </p>
+        <textarea
+          className="w-full border rounded px-3 py-2 text-xs font-mono h-32"
+          placeholder="Cole aqui as linhas copiadas do Excel..."
+          value={pasteText}
+          onChange={(e) => {
+            setPasteText(e.target.value);
+            setImportPreview(null);
+          }}
+        />
+        <button
+          onClick={analyzePaste}
+          disabled={!pasteText.trim()}
+          className="mt-3 border rounded px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+        >
+          Analisar
+        </button>
+
+        {importPreview && (
+          <div className="mt-4">
+            <div className="overflow-x-auto border rounded-lg">
+              <table className="w-full text-xs">
+                <thead className="bg-gray-50 text-gray-500 uppercase">
+                  <tr>
+                    <th className="text-left px-3 py-2">Nome</th>
+                    <th className="text-left px-3 py-2">Check-in</th>
+                    <th className="text-left px-3 py-2">Check-out</th>
+                    <th className="text-left px-3 py-2">Plataforma</th>
+                    <th className="text-right px-3 py-2">Valor</th>
+                    <th className="text-left px-3 py-2">Problemas</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importPreview.map((r, i) => (
+                    <tr key={i} className={`border-t ${r.errors.length > 0 ? "bg-red-50" : ""}`}>
+                      <td className="px-3 py-2">{r.guestName || "—"}</td>
+                      <td className="px-3 py-2">{r.checkin ?? "—"}</td>
+                      <td className="px-3 py-2">{r.checkout ?? "—"}</td>
+                      <td className="px-3 py-2">{SOURCE_LABEL[r.source] ?? r.source}</td>
+                      <td className="px-3 py-2 text-right">{r.totalPrice != null ? `€${r.totalPrice.toFixed(2)}` : "—"}</td>
+                      <td className="px-3 py-2 text-red-600">{r.errors.join(" ")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              {importPreview.filter((r) => r.errors.length === 0).length} de {importPreview.length} linha(s) prontas
+              para importar. Linhas a vermelho têm problemas e não serão importadas.
+            </p>
+            <button
+              onClick={confirmImport}
+              disabled={importing || importPreview.every((r) => r.errors.length > 0)}
+              className="mt-3 bg-black text-white px-4 py-2 rounded disabled:opacity-50"
+            >
+              {importing ? "A importar..." : `Importar ${importPreview.filter((r) => r.errors.length === 0).length} reserva(s)`}
+            </button>
+          </div>
+        )}
+        {importResult && <p className="text-sm mt-3">{importResult}</p>}
+      </section>
     </main>
   );
 }
