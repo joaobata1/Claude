@@ -39,6 +39,7 @@ export default function Backoffice() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [savedIsError, setSavedIsError] = useState(false);
   const [icalSources, setIcalSources] = useState<IcalSource[]>([]);
 
   const [manual, setManual] = useState({
@@ -91,14 +92,27 @@ export default function Backoffice() {
 
   async function saveSettings() {
     setSaving(true);
-    await fetch("/api/backoffice/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...settings, ical_sources: JSON.stringify(icalSources) }),
-    });
+    setSavedMsg("");
+    try {
+      const res = await fetch("/api/backoffice/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...settings, ical_sources: JSON.stringify(icalSources) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSavedIsError(true);
+        setSavedMsg(data.error ? `Erro ao guardar: ${data.error}` : "Erro ao guardar. Tente novamente.");
+      } else {
+        setSavedIsError(false);
+        setSavedMsg("Guardado com sucesso.");
+      }
+    } catch {
+      setSavedIsError(true);
+      setSavedMsg("Erro de ligação ao tentar guardar. Verifique a sua internet e tente novamente.");
+    }
     setSaving(false);
-    setSavedMsg("Guardado com sucesso.");
-    setTimeout(() => setSavedMsg(""), 2500);
+    setTimeout(() => setSavedMsg(""), 4000);
   }
 
   function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
@@ -280,7 +294,9 @@ export default function Backoffice() {
         >
           {saving ? "A guardar..." : "Guardar definições"}
         </button>
-        {savedMsg && <p className="text-green-600 text-sm mt-2">{savedMsg}</p>}
+        {savedMsg && (
+          <p className={`text-sm mt-2 ${savedIsError ? "text-red-600" : "text-green-600"}`}>{savedMsg}</p>
+        )}
       </section>
 
       <section className="border-t pt-8">
