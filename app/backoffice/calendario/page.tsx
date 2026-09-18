@@ -1,6 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getAllHolidaysByDate, type Holiday, type HolidayCountry } from "../../../lib/holidays";
+
+const HOLIDAY_DOT_COLOR: Record<HolidayCountry, string> = {
+  PT: "bg-sky-500",
+  DE: "bg-violet-500",
+  ES: "bg-orange-500",
+};
+
+const HOLIDAY_LABEL: Record<HolidayCountry, string> = {
+  PT: "Feriado em Portugal",
+  DE: "Feriado na Alemanha",
+  ES: "Feriado em Espanha",
+};
 
 interface BookingLite {
   id: string;
@@ -75,6 +88,15 @@ export default function Calendario() {
   const [bulkSlow, setBulkSlow] = useState(false);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  const holidaysByDate = useMemo(() => {
+    const years = new Set(grid.map((d) => Number(d.slice(0, 4))));
+    const merged = new Map<string, Holiday[]>();
+    for (const year of years) {
+      for (const [date, list] of getAllHolidaysByDate(year)) merged.set(date, list);
+    }
+    return merged;
+  }, [grid]);
 
   useEffect(() => {
     const start = grid[0];
@@ -275,6 +297,15 @@ export default function Calendario() {
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-3 h-3 rounded-full bg-green-400" /> Livre
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-sky-500" /> Feriado PT
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-violet-500" /> Feriado DE
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500" /> Feriado ES
+        </span>
       </div>
 
       {loading ? (
@@ -295,6 +326,7 @@ export default function Calendario() {
               const blocked = !booking && blockedDates.has(date);
               const isToday = date === today;
               const price = date in prices ? prices[date] : defaultPrice;
+              const holidays = holidaysByDate.get(date) ?? [];
 
               let bg = "bg-white";
               if (booking) bg = "bg-red-50";
@@ -310,6 +342,17 @@ export default function Calendario() {
                     <span className={`text-xs ${isToday ? "font-bold text-gray-900" : "text-gray-500"}`}>
                       {Number(date.slice(8, 10))}
                     </span>
+                    {holidays.length > 0 && (
+                      <span className="flex items-center gap-0.5">
+                        {holidays.map((h) => (
+                          <span
+                            key={h.country}
+                            className={`inline-block w-2 h-2 rounded-full ${HOLIDAY_DOT_COLOR[h.country]}`}
+                            title={`${HOLIDAY_LABEL[h.country]}: ${h.name}`}
+                          />
+                        ))}
+                      </span>
+                    )}
                   </div>
 
                   {booking && (

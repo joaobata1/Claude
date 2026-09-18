@@ -64,10 +64,16 @@ export async function syncAllIcalSources() {
   return results;
 }
 
-/** Gera o feed .ics do próprio site para colar no Airbnb/Booking/VRBO/outros */
+/**
+ * Gera o feed .ics do próprio site para colar no Airbnb/Booking/VRBO/outros, evitando
+ * duplicação de bloqueios: inclui só reservas com origem "site" (as feitas através do
+ * motor de reservas), nunca as que já vieram de OTAs por importação manual ou iCal.
+ */
 export async function generateOwnIcalFeed(): Promise<string> {
   await ensureSchema();
-  const bookings = await sql`SELECT * FROM bookings WHERE payment_status IN ('paid','pending')`;
+  const bookings = await sql`
+    SELECT * FROM bookings WHERE source = 'site' AND payment_status IN ('paid','pending')
+  `;
 
   const lines = [
     "BEGIN:VCALENDAR",
