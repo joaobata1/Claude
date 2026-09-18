@@ -72,6 +72,7 @@ export default function Calendario() {
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [bulkApplying, setBulkApplying] = useState(false);
+  const [bulkSlow, setBulkSlow] = useState(false);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
@@ -173,12 +174,22 @@ export default function Calendario() {
       return;
     }
     setBulkApplying(true);
+    setBulkSlow(false);
     setBulkResult(null);
+
+    // Se demorar mais de 2s, mostra um aviso mais visível — evita a sensação de "bloqueado"
+    // em ligações mais lentas (ex: servidor a arrancar a frio).
+    const slowTimer = setTimeout(() => setBulkSlow(true), 2000);
+    // Nunca deixa o pedido ficar pendente para sempre sem feedback nenhum.
+    const controller = new AbortController();
+    const abortTimer = setTimeout(() => controller.abort(), 30000);
+
     try {
       const res = await fetch("/api/backoffice/daily-prices/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel: "site", dates, price }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -191,10 +202,20 @@ export default function Calendario() {
         });
         setBulkResult(`Preço aplicado a ${dates.length} dia(s).`);
       }
-    } catch {
-      setBulkResult("Erro de ligação ao aplicar preços.");
+    } catch (err: any) {
+      if (err?.name === "AbortError") {
+        setBulkResult(
+          "A operação demorou demasiado tempo e foi cancelada. Tente novamente — se persistir, verifique se o projeto Supabase não está pausado."
+        );
+      } else {
+        setBulkResult("Erro de ligação ao aplicar preços.");
+      }
     }
+
+    clearTimeout(slowTimer);
+    clearTimeout(abortTimer);
     setBulkApplying(false);
+    setBulkSlow(false);
   }
 
   function changeMonth(delta: number) {
@@ -404,10 +425,18 @@ export default function Calendario() {
             <button
               onClick={applyBulkPrice}
               disabled={bulkApplying}
-              className="w-full bg-gray-900 text-white rounded py-2.5 font-medium"
+              className="w-full bg-gray-900 text-white rounded py-2.5 font-medium flex items-center justify-center gap-2 disabled:opacity-80"
             >
+              {bulkApplying && (
+                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              )}
               {bulkApplying ? "A aplicar..." : "Aplicar"}
             </button>
+            {bulkApplying && bulkSlow && (
+              <p className="text-xs text-amber-600 mt-2">
+                Isto está a demorar mais do que o normal (a ligar ao servidor) — aguarde, não feche esta janela.
+              </p>
+            )}
             {bulkResult && <p className="text-sm mt-2 text-gray-700">{bulkResult}</p>}
           </div>
         </div>
