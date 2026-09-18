@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!source || !guestName || !checkin || !checkout) {
     return NextResponse.json({ error: "Dados em falta." }, { status: 400 });
   }
-  if (!["airbnb", "booking", "vrbo"].includes(source)) {
+  if (!["airbnb", "booking", "vrbo", "outros"].includes(source)) {
     return NextResponse.json({ error: "Origem inválida." }, { status: 400 });
   }
 

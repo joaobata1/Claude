@@ -6,6 +6,7 @@ const SOURCE_LABEL: Record<string, string> = {
   airbnb: "Airbnb",
   booking: "Booking",
   vrbo: "VRBO",
+  outros: "Outros",
 };
 
 function csvEscape(value: string | number | null): string {

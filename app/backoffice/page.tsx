@@ -148,7 +148,7 @@ export default function Backoffice() {
       const newGuestsCount = data.guestsCount ?? manual.guestsCount;
       setManual((prev) => ({
         ...prev,
-        source: ["airbnb", "booking", "vrbo"].includes(data.source) ? data.source : prev.source,
+        source: ["airbnb", "booking", "vrbo", "outros"].includes(data.source) ? data.source : prev.source,
         guestName: data.guestName ?? prev.guestName,
         guestEmail: data.guestEmail ?? prev.guestEmail,
         guestPhone: data.guestPhone ?? prev.guestPhone,
@@ -375,6 +375,7 @@ export default function Backoffice() {
             <option value="airbnb">Airbnb</option>
             <option value="booking">Booking.com</option>
             <option value="vrbo">VRBO</option>
+            <option value="outros">Outros</option>
           </select>
           <input
             placeholder="Nome do hóspede"

@@ -1,26 +1,100 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
 
+const STORAGE_KEY = "aljezur-reserva-em-curso";
+
+interface StoredState {
+  step: "datas" | "hospedes" | "confirmado";
+  checkin: string;
+  checkout: string;
+  guestsCount: number;
+  guestName: string;
+  guestEmail: string;
+  guestPhone: string;
+  paymentMethod: "mbway" | "card";
+  bookingId: string | null;
+  releaseInfo: any;
+}
+
+function loadStoredState(): Partial<StoredState> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Um dia [checkin, checkout) faz interseção com alguma data bloqueada? */
+function rangeOverlapsBlocked(checkin: string, checkout: string, blocked: Set<string>): boolean {
+  if (!checkin || !checkout) return false;
+  const d = new Date(checkin);
+  const end = new Date(checkout);
+  while (d < end) {
+    if (blocked.has(d.toISOString().slice(0, 10))) return true;
+    d.setDate(d.getDate() + 1);
+  }
+  return false;
+}
+
 export default function Reservar() {
-  const [step, setStep] = useState<"datas" | "hospedes" | "confirmado">("datas");
-  const [checkin, setCheckin] = useState("");
-  const [checkout, setCheckout] = useState("");
-  const [guestsCount, setGuestsCount] = useState(2);
-  const [guestName, setGuestName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"mbway" | "card">("mbway");
-  const [bookingId, setBookingId] = useState<string | null>(null);
+  const stored = loadStoredState();
+  const [step, setStep] = useState<"datas" | "hospedes" | "confirmado">(stored.step ?? "datas");
+  const [checkin, setCheckin] = useState(stored.checkin ?? "");
+  const [checkout, setCheckout] = useState(stored.checkout ?? "");
+  const [guestsCount, setGuestsCount] = useState(stored.guestsCount ?? 2);
+  const [guestName, setGuestName] = useState(stored.guestName ?? "");
+  const [guestEmail, setGuestEmail] = useState(stored.guestEmail ?? "");
+  const [guestPhone, setGuestPhone] = useState(stored.guestPhone ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<"mbway" | "card">(stored.paymentMethod ?? "mbway");
+  const [bookingId, setBookingId] = useState<string | null>(stored.bookingId ?? null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [releaseInfo, setReleaseInfo] = useState<any>(null);
+  const [releaseInfo, setReleaseInfo] = useState<any>(stored.releaseInfo ?? null);
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
 
   const { guests, resize, update } = useGuestForm(guestsCount);
 
+  // Guarda o progresso: sobrevive a recarregamentos da página (ex: ao voltar da app do MB WAY no telemóvel).
+  useEffect(() => {
+    const state: StoredState = {
+      step,
+      checkin,
+      checkout,
+      guestsCount,
+      guestName,
+      guestEmail,
+      guestPhone,
+      paymentMethod,
+      bookingId,
+      releaseInfo,
+    };
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // sessionStorage indisponível (ex: modo privado) — sem persistência, mas o resto continua a funcionar
+    }
+  }, [step, checkin, checkout, guestsCount, guestName, guestEmail, guestPhone, paymentMethod, bookingId, releaseInfo]);
+
+  // Datas já ocupadas (reservas do site + OTAs), para avisar o cliente antes de submeter o formulário.
+  useEffect(() => {
+    fetch("/api/availability")
+      .then((r) => r.json())
+      .then((data) => setBlockedDates(new Set<string>(data.blockedDates ?? [])))
+      .catch(() => {});
+  }, []);
+
+  const datesUnavailable = rangeOverlapsBlocked(checkin, checkout, blockedDates);
+
   async function handleBook() {
     setError(null);
+    if (datesUnavailable) {
+      setError("Essas datas já não estão disponíveis. Escolha outro intervalo.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch("/api/book", {
@@ -35,6 +109,11 @@ export default function Reservar() {
         return;
       }
       setBookingId(data.bookingId);
+      if (data.status === "redirect" && data.paymentUrl) {
+        // Pagamento por cartão: o cliente introduz os dados do cartão numa página da ifthenpay.
+        window.location.href = data.paymentUrl;
+        return;
+      }
       setStep("hospedes");
     } catch {
       setError("Erro de ligação. Tente novamente.");
@@ -69,6 +148,11 @@ export default function Reservar() {
     setReleaseInfo(data.release);
     setStep("confirmado");
     setLoading(false);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // ignorar
+    }
   }
 
   return (
@@ -80,13 +164,31 @@ export default function Reservar() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-gray-600 mb-1">Check-in</label>
-              <input type="date" className="w-full border rounded px-3 py-2" value={checkin} onChange={(e) => setCheckin(e.target.value)} />
+              <input
+                type="date"
+                className="w-full border rounded px-3 py-2"
+                value={checkin}
+                min={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCheckin(e.target.value)}
+              />
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Check-out</label>
-              <input type="date" className="w-full border rounded px-3 py-2" value={checkout} onChange={(e) => setCheckout(e.target.value)} />
+              <input
+                type="date"
+                className="w-full border rounded px-3 py-2"
+                value={checkout}
+                min={checkin || new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCheckout(e.target.value)}
+              />
             </div>
           </div>
+
+          {datesUnavailable && (
+            <p className="text-red-600 text-sm">
+              Essas datas já não estão disponíveis. Escolha outro intervalo.
+            </p>
+          )}
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Número de hóspedes</label>
@@ -119,7 +221,11 @@ export default function Reservar() {
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">Método de pagamento</label>
-            <select className="w-full border rounded px-3 py-2" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as any)}>
+            <select
+              className="w-full border rounded px-3 py-2"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card")}
+            >
               <option value="mbway">MB WAY</option>
               <option value="card">Cartão de crédito</option>
             </select>
@@ -127,7 +233,11 @@ export default function Reservar() {
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
-          <button onClick={handleBook} disabled={loading} className="w-full bg-gray-900 text-white rounded py-3 font-medium">
+          <button
+            onClick={handleBook}
+            disabled={loading || datesUnavailable || !checkin || !checkout}
+            className="w-full bg-gray-900 text-white rounded py-3 font-medium disabled:opacity-50"
+          >
             {loading ? "A processar..." : "Continuar para pagamento"}
           </button>
         </div>

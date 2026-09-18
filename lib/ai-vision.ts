@@ -14,7 +14,7 @@ export interface ParsedBookingScreenshot {
   checkin: string | null; // YYYY-MM-DD
   checkout: string | null; // YYYY-MM-DD
   guestsCount: number | null;
-  source: "airbnb" | "booking" | "vrbo" | "other" | null;
+  source: "airbnb" | "booking" | "vrbo" | "outros" | null;
   totalPrice: number | null;
   commissionAmount: number | null;
   cleaningFee: number | null;
@@ -32,7 +32,7 @@ Extrai os dados visíveis e responde APENAS com um objeto JSON válido, sem mark
   "checkin": string "YYYY-MM-DD" ou null,
   "checkout": string "YYYY-MM-DD" ou null,
   "guestsCount": number (total de hóspedes, soma de adultos+crianças) ou null,
-  "source": "airbnb" | "booking" | "vrbo" | "other" ou null,
+  "source": "airbnb" | "booking" | "vrbo" | "outros" ou null,
   "totalPrice": number (preço total pago pelo hóspede, sem símbolo de moeda) ou null,
   "commissionAmount": number (comissão/taxa de serviço cobrada pela plataforma, valor absoluto em €) ou null,
   "cleaningFee": number (taxa de limpeza, se visível) ou null,

@@ -32,6 +32,7 @@ const SOURCE_LABEL: Record<string, string> = {
   airbnb: "Airbnb",
   booking: "Booking.com",
   vrbo: "VRBO",
+  outros: "Outros",
 };
 
 function whatsappLink(phone: string | null): string | null {
