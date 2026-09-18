@@ -115,6 +115,8 @@ export default function Backoffice() {
   const [savedIsError, setSavedIsError] = useState(false);
   const [icalSources, setIcalSources] = useState<IcalSource[]>([]);
   const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<Record<string, any> | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -322,6 +324,25 @@ export default function Backoffice() {
     setTimeout(() => setSavedMsg(""), 4000);
   }
 
+  async function syncIcalNow() {
+    setSyncing(true);
+    setSyncResult(null);
+    // Garante que os links por guardar (ex: acabados de colar) são usados na sincronização.
+    await fetch("/api/backoffice/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ical_sources: JSON.stringify(icalSources) }),
+    });
+    try {
+      const res = await fetch("/api/ical/import", { method: "POST" });
+      const data = await res.json();
+      setSyncResult(data.synced ?? {});
+    } catch {
+      setSyncResult({ erro: { label: "Erro", error: "Erro de ligação ao sincronizar." } });
+    }
+    setSyncing(false);
+  }
+
   const activeSection = SECTIONS.find((s) => s.id === section)!;
 
   return (
@@ -393,6 +414,49 @@ export default function Backoffice() {
           <button onClick={addIcalSource} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
             + Adicionar link iCal
           </button>
+
+          <div className="border-t mt-6 pt-5">
+            <h2 className="text-lg font-medium mb-1">Sincronizar agora</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Os links acima só trazem reservas quando alguém pede a sincronização — normalmente um cron
+              externo (ex: cron-job.org) a chamar <code className="bg-gray-100 px-1 rounded">/api/ical/import</code>{" "}
+              de hora a hora. Sem isso configurado, nada é importado automaticamente. Use este botão para
+              sincronizar manualmente agora (também guarda os links acima primeiro).
+            </p>
+            <button
+              onClick={syncIcalNow}
+              disabled={syncing}
+              className="bg-gray-900 text-white text-sm px-4 py-2 rounded disabled:opacity-60"
+            >
+              {syncing ? "A sincronizar..." : "Sincronizar agora"}
+            </button>
+            {syncResult && (
+              <ul className="text-sm mt-3 space-y-1">
+                {Object.values(syncResult).map((r: any, i) => (
+                  <li key={i} className={r.error ? "text-red-600" : "text-gray-700"}>
+                    {r.label}: {r.error ? r.error : `${r.nights} noite(s) importada(s)`}
+                  </li>
+                ))}
+                {Object.keys(syncResult).length === 0 && (
+                  <li className="text-gray-500">Nenhum link iCal configurado para sincronizar.</li>
+                )}
+              </ul>
+            )}
+          </div>
+
+          <div className="border-t mt-6 pt-5">
+            <h2 className="text-lg font-medium mb-1">Exportar para o Airbnb/Booking/VRBO</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Cole este link na opção "importar calendário" de cada plataforma, para bloquear lá as datas já
+              reservadas diretamente no site (evita reservas em duplicado).
+            </p>
+            <input
+              readOnly
+              className="w-full border rounded px-3 py-2 text-sm bg-gray-50"
+              value={typeof window !== "undefined" ? `${window.location.origin}/api/ical/export` : "/api/ical/export"}
+              onFocus={(e) => e.target.select()}
+            />
+          </div>
         </section>
       )}
 

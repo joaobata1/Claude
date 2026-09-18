@@ -15,6 +15,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dados em falta." }, { status: 400 });
   }
 
+  const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+  if (!isoDate.test(checkin) || !isoDate.test(checkout) || checkin >= checkout) {
+    return NextResponse.json({ error: "Datas inválidas." }, { status: 400 });
+  }
+
   const nights =
     (new Date(checkout).getTime() - new Date(checkin).getTime()) / (1000 * 60 * 60 * 24);
   const pricePerNight = parseFloat((await getSetting("price_per_night")) ?? "0");
@@ -36,7 +41,7 @@ export async function POST(req: NextRequest) {
       return tx<{ booking_number: number }[]>`
         INSERT INTO bookings
         (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count, price_total, cleaning_cost, payment_status, payment_method)
-        VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
+        VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail ?? null}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
         RETURNING booking_number
       `;
     });
