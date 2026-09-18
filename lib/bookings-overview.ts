@@ -5,6 +5,7 @@ export type SemaphoreColor = "green" | "red" | "amber" | "gray";
 
 export interface BookingOverviewRow {
   id: string;
+  bookingNumber: number;
   source: string;
   guestName: string;
   guestPhone: string | null;
@@ -131,6 +132,7 @@ export async function getBookingsOverview(): Promise<BookingOverviewRow[]> {
 
     return {
       id: b.id,
+      bookingNumber: b.booking_number,
       source: b.source,
       guestName: b.guest_name,
       guestPhone: b.guest_phone,

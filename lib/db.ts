@@ -93,10 +93,35 @@ async function initSchema() {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS message_templates (
+      type TEXT NOT NULL,
+      language TEXT NOT NULL,
+      subject TEXT DEFAULT '',
+      body TEXT DEFAULT '',
+      PRIMARY KEY (type, language)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS message_log (
+      id TEXT PRIMARY KEY,
+      booking_id TEXT NOT NULL REFERENCES bookings(id),
+      type TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      language TEXT NOT NULL,
+      automated INTEGER DEFAULT 0,
+      sent_at TIMESTAMPTZ DEFAULT now()
+    )
+  `;
+
   // Migração segura: adiciona colunas novas a bases de dados criadas antes desta versão
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_amount REAL DEFAULT 0`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS cleaning_cost REAL DEFAULT 0`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_reference TEXT`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_number SERIAL`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_language TEXT DEFAULT 'pt'`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS message_channel TEXT DEFAULT 'whatsapp'`;
 }
 
 // Chaves de definições geridas no backoffice (nunca hardcoded no código)
@@ -137,6 +162,8 @@ export const SETTINGS_KEYS = [
   "gallery_photo_urls", // JSON: string[] — fotos da galeria (Supabase Storage)
   "site_description", // descrição da casa, mostrada na página inicial
   "site_about", // texto "Sobre nós"
+  // Mensagens automáticas (chaves/instruções/personalizadas)
+  "automation_rules", // JSON: [{ id, type, daysOffset, relativeTo: 'checkin'|'checkout', enabled }]
 ] as const;
 
 export async function getSetting(key: string): Promise<string | null> {

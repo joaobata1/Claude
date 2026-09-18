@@ -34,8 +34,39 @@ const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string
   site_about: { label: "Sobre nós" },
 };
 
+const MESSAGE_TYPES: { id: string; label: string }[] = [
+  { id: "chaves", label: "Envio de chaves" },
+  { id: "instrucoes", label: "Instruções e regras" },
+  { id: "custom1", label: "Mensagem personalizada 1" },
+  { id: "custom2", label: "Mensagem personalizada 2" },
+];
+
+const MESSAGE_LANGUAGES: { id: string; label: string }[] = [
+  { id: "pt", label: "Português" },
+  { id: "en", label: "Inglês" },
+  { id: "fr", label: "Francês" },
+  { id: "es", label: "Espanhol" },
+  { id: "de", label: "Alemão" },
+];
+
+interface MessageTemplateRow {
+  type: string;
+  language: string;
+  subject: string;
+  body: string;
+}
+
+interface AutomationRule {
+  id: string;
+  type: string;
+  daysOffset: number;
+  relativeTo: "checkin" | "checkout";
+  enabled: boolean;
+}
+
 const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   { id: "ical", label: "iCal", fields: [] },
+  { id: "mensagens", label: "Mensagens", fields: [] },
   { id: "regras", label: "Regras & Preços", fields: ["price_per_night", "cleaning_fee", "cleaning_contact_phone"] },
   { id: "nuki", label: "Nuki", fields: ["nuki_api_token", "nuki_smartlock_id"] },
   { id: "pagamentos", label: "Pagamentos", fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key"] },
@@ -78,6 +109,13 @@ export default function Backoffice() {
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
+  const [templates, setTemplates] = useState<MessageTemplateRow[]>([]);
+  const [msgType, setMsgType] = useState("chaves");
+  const [msgLang, setMsgLang] = useState("pt");
+  const [savingTemplates, setSavingTemplates] = useState(false);
+  const [templatesSavedMsg, setTemplatesSavedMsg] = useState("");
+  const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
+
   useEffect(() => {
     fetch("/api/backoffice/settings")
       .then((r) => r.json())
@@ -95,7 +133,16 @@ export default function Backoffice() {
         } catch {
           setGalleryPhotos([]);
         }
+        try {
+          const parsed = data.automation_rules ? JSON.parse(data.automation_rules) : [];
+          setAutomationRules(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setAutomationRules([]);
+        }
       });
+    fetch("/api/backoffice/message-templates")
+      .then((r) => r.json())
+      .then((data) => setTemplates(data.templates ?? []));
   }, []);
 
   function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
@@ -187,6 +234,55 @@ export default function Backoffice() {
     setIcalSources((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function currentTemplate(): MessageTemplateRow {
+    return (
+      templates.find((t) => t.type === msgType && t.language === msgLang) ?? {
+        type: msgType,
+        language: msgLang,
+        subject: "",
+        body: "",
+      }
+    );
+  }
+
+  function updateCurrentTemplate(field: "subject" | "body", value: string) {
+    setTemplates((prev) => {
+      const exists = prev.some((t) => t.type === msgType && t.language === msgLang);
+      if (exists) {
+        return prev.map((t) => (t.type === msgType && t.language === msgLang ? { ...t, [field]: value } : t));
+      }
+      return [...prev, { type: msgType, language: msgLang, subject: "", body: "", [field]: value }];
+    });
+  }
+
+  async function saveTemplates() {
+    setSavingTemplates(true);
+    setTemplatesSavedMsg("");
+    const res = await fetch("/api/backoffice/message-templates", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ templates }),
+    });
+    setSavingTemplates(false);
+    setTemplatesSavedMsg(res.ok ? "Modelos guardados com sucesso." : "Erro ao guardar os modelos.");
+    setTimeout(() => setTemplatesSavedMsg(""), 4000);
+  }
+
+  function addAutomationRule() {
+    setAutomationRules((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), type: "chaves", daysOffset: -1, relativeTo: "checkin", enabled: true },
+    ]);
+  }
+
+  function updateAutomationRule(id: string, patch: Partial<AutomationRule>) {
+    setAutomationRules((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }
+
+  function removeAutomationRule(id: string) {
+    setAutomationRules((prev) => prev.filter((r) => r.id !== id));
+  }
+
   async function saveSettings() {
     setSaving(true);
     setSavedMsg("");
@@ -194,7 +290,11 @@ export default function Backoffice() {
       const res = await fetch("/api/backoffice/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...settings, ical_sources: JSON.stringify(icalSources) }),
+        body: JSON.stringify({
+          ...settings,
+          ical_sources: JSON.stringify(icalSources),
+          automation_rules: JSON.stringify(automationRules),
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -283,6 +383,138 @@ export default function Backoffice() {
           <button onClick={addIcalSource} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
             + Adicionar link iCal
           </button>
+        </section>
+      )}
+
+      {section === "mensagens" && (
+        <section className="space-y-8">
+          <div>
+            <h2 className="text-lg font-medium mb-1">Modelos de mensagens</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Um modelo por tipo de mensagem e por idioma. Use os marcadores{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{nome}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{checkin}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{checkout}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{codigo}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{numero_reserva}"}</code> — são substituídos
+              automaticamente ao enviar.
+            </p>
+
+            <div className="flex gap-1 mb-2 flex-wrap">
+              {MESSAGE_TYPES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => setMsgType(t.id)}
+                  className={`px-3 py-1.5 rounded text-xs border ${
+                    msgType === t.id ? "bg-gray-900 text-white border-gray-900" : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {MESSAGE_LANGUAGES.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => setMsgLang(l.id)}
+                  className={`px-3 py-1.5 rounded text-xs border ${
+                    msgLang === l.id ? "bg-gray-700 text-white border-gray-700" : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+
+            <label className="block text-sm text-gray-600 mb-1">Assunto (usado no email)</label>
+            <input
+              className="w-full border rounded px-3 py-2 text-sm mb-3"
+              value={currentTemplate().subject}
+              onChange={(e) => updateCurrentTemplate("subject", e.target.value)}
+            />
+            <label className="block text-sm text-gray-600 mb-1">Mensagem</label>
+            <textarea
+              className="w-full border rounded px-3 py-2 h-40 text-sm"
+              value={currentTemplate().body}
+              onChange={(e) => updateCurrentTemplate("body", e.target.value)}
+            />
+
+            <button
+              onClick={saveTemplates}
+              disabled={savingTemplates}
+              className="mt-3 bg-gray-900 text-white text-sm px-4 py-2 rounded disabled:opacity-60"
+            >
+              {savingTemplates ? "A guardar..." : "Guardar modelos"}
+            </button>
+            {templatesSavedMsg && <span className="ml-3 text-sm text-gray-600">{templatesSavedMsg}</span>}
+          </div>
+
+          <div className="border-t pt-6">
+            <h2 className="text-lg font-medium mb-1">Envio automático</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Envia uma mensagem automaticamente X dias antes ou depois do check-in/check-out. Só é totalmente
+              automático para reservas cujo canal seja Email — para WhatsApp, a reserva mostra um lembrete pronto a
+              enviar na página de detalhe, porque não é possível enviar WhatsApp sem intervenção manual sem uma
+              API de WhatsApp Business paga (Twilio, Meta ou Vonage).
+            </p>
+            <div className="space-y-2">
+              {automationRules.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 border rounded-lg p-3 flex-wrap">
+                  <select
+                    className="border rounded px-2 py-1.5 text-sm"
+                    value={r.type}
+                    onChange={(e) => updateAutomationRule(r.id, { type: e.target.value })}
+                  >
+                    {MESSAGE_TYPES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="number"
+                    className="w-20 border rounded px-2 py-1.5 text-sm"
+                    value={r.daysOffset}
+                    title="Dias (negativo = antes, positivo = depois)"
+                    onChange={(e) => updateAutomationRule(r.id, { daysOffset: Number(e.target.value) })}
+                  />
+                  <span className="text-xs text-gray-500">dias em relação a</span>
+                  <select
+                    className="border rounded px-2 py-1.5 text-sm"
+                    value={r.relativeTo}
+                    onChange={(e) =>
+                      updateAutomationRule(r.id, { relativeTo: e.target.value as "checkin" | "checkout" })
+                    }
+                  >
+                    <option value="checkin">Check-in</option>
+                    <option value="checkout">Check-out</option>
+                  </select>
+                  <label className="flex items-center gap-1.5 text-xs text-gray-600 ml-2">
+                    <input
+                      type="checkbox"
+                      checked={r.enabled}
+                      onChange={(e) => updateAutomationRule(r.id, { enabled: e.target.checked })}
+                    />
+                    Ativa
+                  </label>
+                  <button
+                    onClick={() => removeAutomationRule(r.id)}
+                    className="text-red-500 text-sm px-2 py-1 hover:bg-red-50 rounded ml-auto"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addAutomationRule} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
+              + Adicionar regra
+            </button>
+            <p className="text-xs text-gray-400 mt-2">
+              As regras só ficam ativas depois de guardar as definições, no botão no fundo da página. É preciso um
+              cron externo (ex: cron-job.org) a chamar <code className="bg-gray-100 px-1 rounded">/api/automation/run-scheduled-messages</code> uma vez por dia.
+            </p>
+          </div>
         </section>
       )}
 

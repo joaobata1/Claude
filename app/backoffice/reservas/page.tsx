@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { BookingOverviewRow, SemaphoreColor } from "@/lib/bookings-overview";
 
 const SEMAPHORE_COLOR: Record<SemaphoreColor, string> = {
@@ -57,6 +58,7 @@ function WhatsappButton({ phone }: { phone: string | null }) {
 }
 
 export default function Reservas() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<BookingOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -98,6 +100,7 @@ export default function Reservas() {
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
               <tr>
+                <th className="text-left px-4 py-3">Nº</th>
                 <th className="text-left px-4 py-3">Check-in</th>
                 <th className="text-left px-4 py-3">Check-out</th>
                 <th className="text-left px-4 py-3">Origem</th>
@@ -118,7 +121,12 @@ export default function Reservas() {
             </thead>
             <tbody>
               {bookings.map((b) => (
-                <tr key={b.id} className={`border-t ${b.requiresSameDayCleaning ? "bg-amber-50" : ""}`}>
+                <tr
+                  key={b.id}
+                  onClick={() => router.push(`/backoffice/reservas/${b.id}`)}
+                  className={`border-t cursor-pointer hover:bg-gray-50 ${b.requiresSameDayCleaning ? "bg-amber-50" : ""}`}
+                >
+                  <td className="px-4 py-3 text-gray-500">#{b.bookingNumber}</td>
                   <td className="px-4 py-3">{b.checkin}</td>
                   <td className="px-4 py-3">{b.checkout}</td>
                   <td className="px-4 py-3">{SOURCE_LABEL[b.source] ?? b.source}</td>
@@ -188,7 +196,7 @@ export default function Reservas() {
                       <span className="text-gray-300">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                     <WhatsappButton phone={b.guestPhone} />
                   </td>
                 </tr>

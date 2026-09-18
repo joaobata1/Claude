@@ -49,6 +49,21 @@ o raciocínio por trás de cada decisão.
 - **Fotos e conteúdo do site** (sub-separador "Site" nas Definições): foto de capa,
   galeria de fotos (Supabase Storage), descrição da casa e texto "Sobre nós" — tudo
   refletido de imediato no site público, sem precisar de novo deploy
+- **Ficha de reserva individual** (clicar numa linha em `/backoffice/reservas`): mostra o
+  número de reserva e todos os detalhes, editáveis (hóspede, contactos, datas, valores,
+  estado do pagamento), com seletor de idioma do hóspede (PT/EN/FR/ES/DE) e de canal de
+  envio (WhatsApp ou Email). Tem botões **Gerar chaves** (Nuki), **Enviar chaves**,
+  **Enviar instruções e regras** e 2 mensagens personalizadas — todas usam os modelos
+  configurados em Definições → Mensagens, no idioma do hóspede, e ficam registadas no
+  histórico de envios da reserva
+- **Definições → Mensagens**: um modelo de mensagem por tipo (chaves, instruções,
+  2 personalizadas) e por idioma (PT/EN/FR/ES/DE), com marcadores `{nome}` `{checkin}`
+  `{checkout}` `{codigo}` `{numero_reserva}`. Também tem as regras de **envio
+  automático** (X dias antes/depois do check-in ou check-out) — só é totalmente
+  automático para reservas com canal Email (via `/api/automation/run-scheduled-messages`,
+  a chamar por um cron externo); para WhatsApp não há API programável sem um provedor
+  pago (Twilio/Meta/Vonage), por isso a ficha da reserva mostra um lembrete pronto a
+  enviar manualmente quando chega a data
 
 **Páginas de gestão**
 - `/backoffice/reservas` — folha de reservas com semáforos (pagamento, dados SIBA,
@@ -101,6 +116,8 @@ o raciocínio por trás de cada decisão.
       depois de recarregar a página. As tabelas foram criadas automaticamente no
       primeiro pedido — nada a correr à mão.
 - [ ] Cron job externo (ex: cron-job.org) a chamar `/api/ical/import` de hora a hora
+- [ ] Cron job externo (ex: cron-job.org) a chamar `/api/automation/run-scheduled-messages`
+      uma vez por dia, se quiser usar o envio automático de mensagens por email
 
 ### 3. Segurança — **obrigatório antes de publicar**
 - [x] Autenticação no `/backoffice` — protegido por palavra-passe (cookie de sessão

@@ -61,6 +61,41 @@ export async function sendNukiCodeBySms(params: {
   return { sent: true };
 }
 
+/** Envio de email genérico (usado pelas mensagens de chaves/instruções/personalizadas) */
+export async function sendGenericEmail(params: { to: string; subject: string; text: string }) {
+  const apiKey = await getSetting("resend_api_key");
+  const fromEmail = (await getSetting("notification_from_email")) || "reservas@aljezurmonteclerigo.pt";
+
+  if (!apiKey) {
+    return { sent: false, reason: "not_configured" };
+  }
+  if (!params.to) {
+    return { sent: false, reason: "no_email" };
+  }
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: fromEmail,
+      to: params.to,
+      subject: params.subject,
+      text: params.text,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("Falha ao enviar email Resend:", errText);
+    return { sent: false, reason: errText };
+  }
+
+  return { sent: true };
+}
+
 export async function sendNukiCodeByEmail(params: {
   guestEmail: string;
   guestName: string;
