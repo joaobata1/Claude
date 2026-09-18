@@ -1,0 +1,417 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+interface BookingLite {
+  id: string;
+  checkin: string;
+  checkout: string;
+  guestName: string;
+  source: string;
+  paymentStatus: string;
+}
+
+interface DateRange {
+  id: string;
+  start: string;
+  end: string;
+}
+
+const SOURCE_LABEL: Record<string, string> = {
+  site: "Site",
+  airbnb: "Airbnb",
+  booking: "Booking",
+  vrbo: "VRBO",
+  outros: "Outros",
+};
+
+const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const MONTH_LABELS = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
+
+function toISO(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function addDays(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return toISO(d);
+}
+
+/** Grelha do mês: começa na segunda-feira da semana que contém o dia 1, sempre 6 semanas (42 dias) */
+function buildMonthGrid(year: number, month: number): string[] {
+  const first = new Date(year, month, 1);
+  const firstWeekday = (first.getDay() + 6) % 7; // 0 = segunda
+  const start = new Date(year, month, 1 - firstWeekday);
+  return Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    return toISO(d);
+  });
+}
+
+export default function Calendario() {
+  const today = useMemo(() => toISO(new Date()), []);
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
+  const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
+
+  const [bookings, setBookings] = useState<BookingLite[]>([]);
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [defaultPrice, setDefaultPrice] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [editingDate, setEditingDate] = useState<string | null>(null);
+  const [savingDate, setSavingDate] = useState<string | null>(null);
+
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkRanges, setBulkRanges] = useState<DateRange[]>([{ id: crypto.randomUUID(), start: "", end: "" }]);
+  const [bulkWeekdays, setBulkWeekdays] = useState<Set<number>>(new Set());
+  const [bulkPrice, setBulkPrice] = useState("");
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
+  const [bulkApplying, setBulkApplying] = useState(false);
+
+  const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
+
+  useEffect(() => {
+    const start = grid[0];
+    const end = grid[grid.length - 1];
+    Promise.all([
+      fetch("/api/backoffice/bookings").then((r) => r.json()),
+      fetch("/api/availability").then((r) => r.json()),
+      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`).then((r) => r.json()),
+      fetch("/api/backoffice/settings").then((r) => r.json()),
+    ]).then(([bookingsData, availabilityData, pricesData, settingsData]) => {
+      setBookings(bookingsData.bookings ?? []);
+      setBlockedDates(new Set<string>(availabilityData.blockedDates ?? []));
+      const map: Record<string, number> = {};
+      for (const p of pricesData.prices ?? []) {
+        if (p.channel === "site") map[p.date] = p.price;
+      }
+      setPrices(map);
+      setDefaultPrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
+      setLoading(false);
+    });
+  }, [grid]);
+
+  const bookingByDate = useMemo(() => {
+    const map = new Map<string, BookingLite>();
+    for (const b of bookings) {
+      if (!["paid", "pending", "not_applicable"].includes(b.paymentStatus)) continue;
+      let d = b.checkin;
+      while (d < b.checkout) {
+        map.set(d, b);
+        d = addDays(d, 1);
+      }
+    }
+    return map;
+  }, [bookings]);
+
+  async function savePrice(date: string, value: string) {
+    const price = parseFloat(value);
+    if (isNaN(price)) {
+      setEditingDate(null);
+      return;
+    }
+    setPrices((prev) => ({ ...prev, [date]: price }));
+    setSavingDate(date);
+    setEditingDate(null);
+    await fetch("/api/backoffice/daily-prices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: "site", date, price }),
+    });
+    setSavingDate(null);
+  }
+
+  function addBulkRange() {
+    setBulkRanges([...bulkRanges, { id: crypto.randomUUID(), start: "", end: "" }]);
+  }
+
+  function updateBulkRange(id: string, field: "start" | "end", value: string) {
+    setBulkRanges((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  }
+
+  function removeBulkRange(id: string) {
+    setBulkRanges((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  function toggleBulkWeekday(day: number) {
+    setBulkWeekdays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  }
+
+  function computeBulkDates(): string[] {
+    const dates = new Set<string>();
+    for (const r of bulkRanges) {
+      if (!r.start || !r.end || r.start > r.end) continue;
+      let d = r.start;
+      while (d <= r.end) {
+        const weekday = (new Date(d + "T00:00:00").getDay() + 6) % 7; // 0 = segunda
+        if (bulkWeekdays.size === 0 || bulkWeekdays.has(weekday)) dates.add(d);
+        d = addDays(d, 1);
+      }
+    }
+    return Array.from(dates);
+  }
+
+  async function applyBulkPrice() {
+    const price = parseFloat(bulkPrice);
+    if (isNaN(price)) {
+      setBulkResult("Indique um preço válido.");
+      return;
+    }
+    const dates = computeBulkDates();
+    if (dates.length === 0) {
+      setBulkResult("Escolha pelo menos um intervalo de datas válido.");
+      return;
+    }
+    setBulkApplying(true);
+    setBulkResult(null);
+    try {
+      const res = await fetch("/api/backoffice/daily-prices/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel: "site", dates, price }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBulkResult(data.error ?? "Erro ao aplicar preços.");
+      } else {
+        setPrices((prev) => {
+          const next = { ...prev };
+          for (const d of dates) next[d] = price;
+          return next;
+        });
+        setBulkResult(`Preço aplicado a ${dates.length} dia(s).`);
+      }
+    } catch {
+      setBulkResult("Erro de ligação ao aplicar preços.");
+    }
+    setBulkApplying(false);
+  }
+
+  function changeMonth(delta: number) {
+    const d = new Date(viewYear, viewMonth + delta, 1);
+    setLoading(true);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  }
+
+  return (
+    <main className="max-w-5xl mx-auto p-8">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <h1 className="text-2xl font-semibold">Calendário</h1>
+        <button
+          onClick={() => {
+            setBulkOpen(true);
+            setBulkResult(null);
+          }}
+          className="bg-gray-900 text-white text-sm px-4 py-2 rounded"
+        >
+          Mudar preços em massa
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 mb-4">
+        <button onClick={() => changeMonth(-1)} className="border rounded px-3 py-1.5 text-sm hover:bg-gray-50">
+          ← Anterior
+        </button>
+        <p className="font-medium min-w-[160px] text-center">
+          {MONTH_LABELS[viewMonth]} {viewYear}
+        </p>
+        <button onClick={() => changeMonth(1)} className="border rounded px-3 py-1.5 text-sm hover:bg-gray-50">
+          Seguinte →
+        </button>
+        <button
+          onClick={() => {
+            const now = new Date();
+            if (now.getFullYear() !== viewYear || now.getMonth() !== viewMonth) {
+              setLoading(true);
+              setViewYear(now.getFullYear());
+              setViewMonth(now.getMonth());
+            }
+          }}
+          className="text-sm text-gray-500 underline"
+        >
+          Hoje
+        </button>
+      </div>
+
+      <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 flex-wrap">
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-red-400" /> Reservado (site)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-amber-400" /> Bloqueado (OTA)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-green-400" /> Livre
+        </span>
+      </div>
+
+      {loading ? (
+        <p className="text-gray-500 text-sm">A carregar...</p>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="grid grid-cols-7 bg-gray-50 text-gray-500 text-xs uppercase">
+            {WEEKDAY_LABELS.map((w) => (
+              <div key={w} className="px-2 py-2 text-center border-b">
+                {w}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7">
+            {grid.map((date) => {
+              const inMonth = new Date(date + "T00:00:00").getMonth() === viewMonth;
+              const booking = bookingByDate.get(date);
+              const blocked = !booking && blockedDates.has(date);
+              const isToday = date === today;
+              const price = date in prices ? prices[date] : defaultPrice;
+
+              let bg = "bg-white";
+              if (booking) bg = "bg-red-50";
+              else if (blocked) bg = "bg-amber-50";
+              else if (inMonth) bg = "bg-green-50/40";
+
+              return (
+                <div
+                  key={date}
+                  className={`min-h-[90px] border-b border-r px-2 py-1.5 ${bg} ${inMonth ? "" : "opacity-40"}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs ${isToday ? "font-bold text-gray-900" : "text-gray-500"}`}>
+                      {Number(date.slice(8, 10))}
+                    </span>
+                  </div>
+
+                  {booking && (
+                    <p className="text-[11px] text-red-700 mt-1 truncate" title={booking.guestName}>
+                      {booking.guestName} · {SOURCE_LABEL[booking.source] ?? booking.source}
+                    </p>
+                  )}
+                  {blocked && <p className="text-[11px] text-amber-700 mt-1">Bloqueado</p>}
+
+                  <div className="mt-2">
+                    {editingDate === date ? (
+                      <input
+                        type="number"
+                        step={0.5}
+                        autoFocus
+                        defaultValue={price}
+                        className="w-16 border rounded px-1 py-0.5 text-xs"
+                        onBlur={(e) => savePrice(date, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          if (e.key === "Escape") setEditingDate(null);
+                        }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => setEditingDate(date)}
+                        className="text-xs text-gray-600 hover:underline"
+                        title="Editar preço deste dia"
+                      >
+                        €{price}
+                      </button>
+                    )}
+                    {savingDate === date && <span className="block text-[10px] text-gray-400">a guardar...</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {bulkOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-20">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">Mudar preços em massa</h2>
+              <button onClick={() => setBulkOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
+                ×
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-3">Datas ou intervalos de datas a alterar (preço do site próprio):</p>
+            <div className="space-y-2 mb-3">
+              {bulkRanges.map((r) => (
+                <div key={r.id} className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="border rounded px-2 py-1.5 text-sm flex-1"
+                    value={r.start}
+                    onChange={(e) => updateBulkRange(r.id, "start", e.target.value)}
+                  />
+                  <span className="text-gray-400 text-sm">a</span>
+                  <input
+                    type="date"
+                    className="border rounded px-2 py-1.5 text-sm flex-1"
+                    value={r.end}
+                    onChange={(e) => updateBulkRange(r.id, "end", e.target.value)}
+                  />
+                  {bulkRanges.length > 1 && (
+                    <button
+                      onClick={() => removeBulkRange(r.id)}
+                      className="text-red-500 text-sm px-1 hover:bg-red-50 rounded"
+                      aria-label="Remover intervalo"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={addBulkRange} className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 mb-4">
+              + Adicionar outro intervalo
+            </button>
+
+            <p className="text-sm text-gray-500 mb-2">
+              Dias da semana (deixe tudo por marcar para aplicar a todos os dias):
+            </p>
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {WEEKDAY_LABELS.map((label, i) => (
+                <button
+                  key={label}
+                  onClick={() => toggleBulkWeekday(i)}
+                  className={`px-3 py-1.5 rounded text-xs border ${
+                    bulkWeekdays.has(i) ? "bg-gray-900 text-white border-gray-900" : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm text-gray-600 mb-1">Preço por noite (€)</label>
+              <input
+                type="number"
+                step={0.5}
+                className="w-full border rounded px-3 py-2"
+                value={bulkPrice}
+                onChange={(e) => setBulkPrice(e.target.value)}
+              />
+            </div>
+
+            <button
+              onClick={applyBulkPrice}
+              disabled={bulkApplying}
+              className="w-full bg-gray-900 text-white rounded py-2.5 font-medium"
+            >
+              {bulkApplying ? "A aplicar..." : "Aplicar"}
+            </button>
+            {bulkResult && <p className="text-sm mt-2 text-gray-700">{bulkResult}</p>}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}

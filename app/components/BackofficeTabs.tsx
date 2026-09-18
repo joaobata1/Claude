@@ -7,6 +7,7 @@ import LogoutButton from "@/app/components/LogoutButton";
 const TABS = [
   { href: "/backoffice/reservas", label: "Reservas" },
   { href: "/backoffice/nova-reserva", label: "Nova reserva" },
+  { href: "/backoffice/calendario", label: "Calendário" },
   { href: "/backoffice/precos", label: "Preços" },
   { href: "/backoffice/limpeza", label: "Limpeza" },
   { href: "/backoffice", label: "Definições" },
