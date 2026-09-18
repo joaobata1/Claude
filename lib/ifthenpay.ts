@@ -8,10 +8,23 @@ import { getSetting } from "./db";
  * As chaves (mbway_key / gateway_key) são geridas no backoffice, nunca no código.
  */
 
+/**
+ * A API MB WAY da ifthenpay espera o número separado do indicativo por "#" (ex:
+ * "351#912345678"), mas o formulário de reserva recolhe o número em bloco (ex:
+ * "351912345678"). MB WAY só funciona com números portugueses, por isso assume-se
+ * sempre o indicativo 351.
+ */
+function toMbwayMobileFormat(phone: string): string {
+  if (phone.includes("#")) return phone;
+  const digits = phone.replace(/\D/g, "");
+  const withoutCountryCode = digits.startsWith("351") ? digits.slice(3) : digits;
+  return `351#${withoutCountryCode}`;
+}
+
 export async function createMbwayRequest(params: {
   bookingId: string;
   amount: number;
-  guestPhone: string; // formato 351#912345678
+  guestPhone: string; // qualquer formato com o número português (com ou sem indicativo/#)
 }) {
   const mbwayKey = await getSetting("ifthenpay_mbway_key");
   if (!mbwayKey) throw new Error("Chave MB WAY não configurada no backoffice.");
@@ -23,14 +36,21 @@ export async function createMbwayRequest(params: {
       mbWayKey: mbwayKey,
       orderId: params.bookingId,
       amount: params.amount.toFixed(2),
-      mobileNumber: params.guestPhone,
+      mobileNumber: toMbwayMobileFormat(params.guestPhone),
       email: "",
       description: `Reserva Aljezur - ${params.bookingId}`,
     }),
   });
 
   if (!res.ok) throw new Error("Falha ao criar pedido MB WAY");
-  return res.json(); // devolve RequestId para consultar estado depois
+  const data = await res.json();
+  // A ifthenpay costuma devolver HTTP 200 mesmo quando o pedido falha a nível de
+  // negócio (ex: chave errada, número inválido) — sem isto, a reserva seguia em frente
+  // como se a notificação MB WAY tivesse sido enviada, quando na verdade não foi.
+  if (data.Status && data.Status !== "000") {
+    throw new Error(data.Message ?? `Pedido MB WAY recusado (estado ${data.Status}).`);
+  }
+  return data; // devolve RequestId para consultar estado depois
 }
 
 export async function createCardPaymentLink(params: {

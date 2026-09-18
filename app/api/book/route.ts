@@ -70,6 +70,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ bookingId, status: "redirect", paymentUrl: result.url, total });
     }
   } catch (err: any) {
+    // Sem isto, a reserva ficava "pending" para sempre — a bloquear estas datas no
+    // calendário sem o cliente ter conseguido pagar de todo.
+    await sql`UPDATE bookings SET payment_status = 'failed' WHERE id = ${bookingId}`;
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
