@@ -73,15 +73,16 @@ o raciocínio por trás de cada decisão.
 | `BACKOFFICE_SESSION_SECRET` | Opcional, segredo para assinar o cookie de sessão (senão usa a palavra-passe acima) |
 
 ### 2. Infraestrutura
-- [ ] Domínio próprio
-- [ ] Hosting (Vercel é o mais simples para Next.js)
-- [x] Base de dados: Postgres (`lib/db.ts`, via biblioteca `postgres`). Já não usa
-      ficheiro SQLite local — funciona em hosting sem disco persistente (Vercel, etc.).
-      **Crie uma base de dados grátis** (Supabase ou Neon são as opções mais simples) e
-      **defina `DATABASE_URL`** nas variáveis de ambiente — ver `.env.example`. As
-      tabelas são criadas automaticamente no primeiro pedido (nada a correr à mão).
-      Em hosting sem servidor, use a connection string do "pooler" (não a ligação
-      direta) para não esgotar ligações à base de dados.
+- [ ] Domínio próprio (por agora o site está no domínio `.vercel.app` gerado automaticamente)
+- [x] Hosting: publicado no **Vercel**, ligado ao repositório GitHub `joaobata1/Claude`
+      (branch `claude/new-session-2lks5u`) — cada `git push` a essa branch publica
+      automaticamente uma nova versão. `BACKOFFICE_PASSWORD` e `DATABASE_URL` já estão
+      configurados nas variáveis de ambiente do projeto Vercel.
+- [x] Base de dados: Postgres (`lib/db.ts`, via biblioteca `postgres`), hospedado no
+      **Supabase** (projeto `wfsnsnvaeqtarvwhyvny`, ligação via connection pooler).
+      Testado em produção: guardar uma definição no backoffice persiste corretamente
+      depois de recarregar a página. As tabelas foram criadas automaticamente no
+      primeiro pedido — nada a correr à mão.
 - [ ] Cron job externo (ex: cron-job.org) a chamar `/api/ical/import` de hora a hora
 
 ### 3. Segurança — **obrigatório antes de publicar**
@@ -123,7 +124,7 @@ npm run dev
 # 3. Preencher o backoffice com as credenciais da checklist acima
 ```
 
-A autenticação do backoffice e a base de dados Postgres já estão implementadas —
-falta apenas definir `BACKOFFICE_PASSWORD` e `DATABASE_URL` em produção. Antes de
-publicar com dados reais, resolva também os restantes pontos da secção 2
-(domínio, hosting, cron do iCal) e faça os testes da secção 4.
+O site já está publicado a sério (Vercel + Supabase), com autenticação do backoffice
+ativa. Antes de ligar a dados reais de hóspedes, falta: domínio próprio (opcional),
+o cron job externo do iCal, reunir as credenciais da secção 1 conforme forem sendo
+precisas, e fazer os testes da secção 4.
