@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { IcalSource } from "@/lib/ical-sync";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 const DAYS_AHEAD = 21;
 
@@ -99,7 +100,7 @@ export default function Precos() {
       </p>
 
       {loading ? (
-        <p className="text-gray-500 text-sm">A carregar...</p>
+        <LoadingSpinner />
       ) : (
         <div className="overflow-x-auto border rounded-lg">
           <table className="text-sm border-collapse">

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAllHolidaysByDate, type Holiday, type HolidayCountry } from "../../../lib/holidays";
+import LoadingSpinner from "../../components/LoadingSpinner";
 
 const HOLIDAY_DOT_COLOR: Record<HolidayCountry, string> = {
   PT: "bg-sky-500",
@@ -346,7 +347,7 @@ export default function Calendario() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500 text-sm">A carregar...</p>
+        <LoadingSpinner />
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <div className="grid grid-cols-7 bg-gray-50 text-gray-500 text-xs uppercase">

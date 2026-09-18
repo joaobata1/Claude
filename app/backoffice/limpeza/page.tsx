@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 interface CleaningRow {
   checkin: string;
@@ -85,7 +86,7 @@ export default function Limpeza() {
       </p>
 
       {loading ? (
-        <p className="text-gray-500 text-sm">A carregar...</p>
+        <LoadingSpinner />
       ) : rows.length === 0 ? (
         <p className="text-gray-500 text-sm">Sem reservas futuras.</p>
       ) : (

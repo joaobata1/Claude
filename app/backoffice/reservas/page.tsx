@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BookingOverviewRow, SemaphoreColor } from "@/lib/bookings-overview";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 const SEMAPHORE_COLOR: Record<SemaphoreColor, string> = {
   green: "#2E9E5B",
@@ -92,7 +93,7 @@ export default function Reservas() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500 text-sm">A carregar...</p>
+        <LoadingSpinner />
       ) : bookings.length === 0 ? (
         <p className="text-gray-500 text-sm">Ainda não há reservas registadas.</p>
       ) : (

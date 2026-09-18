@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import LoadingSpinner from "@/app/components/LoadingSpinner";
 
 interface Booking {
   id: string;
@@ -248,7 +249,12 @@ export default function BookingDetail() {
     }
   }
 
-  if (loading) return <main className="max-w-4xl mx-auto p-8 text-gray-500 text-sm">A carregar...</main>;
+  if (loading)
+    return (
+      <main className="max-w-4xl mx-auto p-8">
+        <LoadingSpinner />
+      </main>
+    );
   if (notFound || !booking)
     return (
       <main className="max-w-4xl mx-auto p-8">
