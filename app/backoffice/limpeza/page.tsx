@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import LogoutButton from "@/app/components/LogoutButton";
 
 interface CleaningRow {
   checkin: string;
@@ -70,12 +69,6 @@ export default function Limpeza() {
 
   return (
     <main className="max-w-3xl mx-auto p-8">
-      <div className="flex items-center gap-4 mb-2">
-        <Link href="/backoffice/reservas" className="text-sm text-gray-500 hover:text-gray-900">
-          ← Folha de reservas
-        </Link>
-        <LogoutButton />
-      </div>
       <h1 className="text-2xl font-semibold mb-1">Tabela de limpezas</h1>
       <p className="text-sm text-gray-500 mb-6">
         Resumo de reservas a partir de hoje, pronto a enviar para quem faz a limpeza.

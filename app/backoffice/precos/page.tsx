@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import LogoutButton from "@/app/components/LogoutButton";
 import type { IcalSource } from "@/lib/ical-sync";
 
 const DAYS_AHEAD = 21;
@@ -92,15 +91,6 @@ export default function Precos() {
 
   return (
     <main className="max-w-7xl mx-auto p-8">
-      <div className="flex items-center gap-4 mb-2">
-        <Link href="/backoffice" className="text-sm text-gray-500 hover:text-gray-900">
-          ← Definições
-        </Link>
-        <Link href="/backoffice/reservas" className="text-sm text-gray-500 hover:text-gray-900">
-          Folha de reservas →
-        </Link>
-        <LogoutButton />
-      </div>
       <h1 className="text-2xl font-semibold mb-1">Comparação de preços</h1>
       <p className="text-sm text-gray-500 mb-6">
         Introduza o preço que vê em cada canal — o valor líquido (já descontada a comissão configurada

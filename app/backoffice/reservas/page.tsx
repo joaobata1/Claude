@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import LogoutButton from "@/app/components/LogoutButton";
 import type { BookingOverviewRow, SemaphoreColor } from "@/lib/bookings-overview";
 
 const SEMAPHORE_COLOR: Record<SemaphoreColor, string> = {
@@ -73,18 +71,6 @@ export default function Reservas() {
 
   return (
     <main className="max-w-7xl mx-auto p-8">
-      <div className="flex items-center gap-4 mb-2">
-        <Link href="/backoffice" className="text-sm text-gray-500 hover:text-gray-900">
-          ← Definições
-        </Link>
-        <Link href="/backoffice/limpeza" className="text-sm text-gray-500 hover:text-gray-900">
-          Tabela de limpezas →
-        </Link>
-        <Link href="/backoffice/precos" className="text-sm text-gray-500 hover:text-gray-900">
-          Comparação de preços →
-        </Link>
-        <LogoutButton />
-      </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Folha de reservas</h1>
         <a
