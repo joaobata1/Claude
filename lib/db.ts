@@ -123,7 +123,11 @@ async function initSchema() {
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_reference TEXT`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS booking_number SERIAL`;
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS guest_language TEXT DEFAULT 'pt'`;
-  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS message_channel TEXT DEFAULT 'whatsapp'`;
+  await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS message_channel TEXT DEFAULT 'email'`;
+  // Mudança de omissão: email é o único canal totalmente automático (grátis, via Resend);
+  // WhatsApp fica para envio manual. Isto atualiza o valor por omissão para reservas
+  // futuras — não altera reservas já existentes, que continuam com o que já tinham.
+  await sql`ALTER TABLE bookings ALTER COLUMN message_channel SET DEFAULT 'email'`;
 }
 
 // Chaves de definições geridas no backoffice (nunca hardcoded no código)
