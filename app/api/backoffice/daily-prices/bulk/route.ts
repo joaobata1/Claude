@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { sql, ensureSchema } from "@/lib/db";
 
+// Por omissão a Vercel corta funções ao fim de 10s (plano Hobby) — insuficiente se o
+// Supabase estiver pausado por inatividade e demorar a "acordar". Alinhado com o
+// limite de 30s do lado do cliente (ver app/backoffice/calendario/page.tsx).
+export const maxDuration = 30;
+
 /** Aplica o mesmo preço a várias datas de uma vez (ex: popup de preços em massa do calendário). */
 export async function POST(req: NextRequest) {
   const { channel, dates, price } = await req.json();

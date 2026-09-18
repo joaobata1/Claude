@@ -1,5 +1,5 @@
 import postgres from "postgres";
-import { sql, ensureSchema } from "./db";
+import { sql, ensureSchema, getSetting } from "./db";
 
 function eachDate(checkin: string, checkout: string): string[] {
   const dates: string[] = [];
@@ -55,4 +55,26 @@ export async function getBlockedDates(): Promise<string[]> {
     for (const d of eachDate(b.checkin, b.checkout)) set.add(d);
   }
   return Array.from(set).sort();
+}
+
+/**
+ * Datas bloqueadas por iCal (só essas, sem as reservas do site), já com a etiqueta da
+ * plataforma (ex: "Airbnb") em vez do id interno da fonte — para colorir o calendário
+ * do backoffice por plataforma antes de a reserva ser importada manualmente.
+ */
+export async function getBlockedDatesBySource(): Promise<{ date: string; sourceLabel: string }[]> {
+  await ensureSchema();
+  const rows = await sql<{ date: string; source: string }[]>`SELECT date, source FROM blocked_dates`;
+
+  const raw = await getSetting("ical_sources");
+  let sources: { id: string; label: string }[] = [];
+  try {
+    const parsed = raw ? JSON.parse(raw) : [];
+    sources = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    sources = [];
+  }
+  const labelById = new Map(sources.map((s) => [s.id, s.label || s.id]));
+
+  return rows.map((r) => ({ date: r.date, sourceLabel: labelById.get(r.source) ?? r.source }));
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { getAllHolidaysByDate, type Holiday, type HolidayCountry } from "../../../lib/holidays";
 
 const HOLIDAY_DOT_COLOR: Record<HolidayCountry, string> = {
@@ -38,6 +39,30 @@ const SOURCE_LABEL: Record<string, string> = {
   outros: "Outros",
 };
 
+interface CellColor {
+  bg: string;
+  text: string;
+}
+
+const SOURCE_COLOR: Record<string, CellColor> = {
+  site: { bg: "bg-indigo-100", text: "text-indigo-700" },
+  airbnb: { bg: "bg-red-100", text: "text-red-700" },
+  booking: { bg: "bg-blue-100", text: "text-blue-700" },
+  vrbo: { bg: "bg-green-200", text: "text-green-800" },
+  outros: { bg: "bg-gray-200", text: "text-gray-700" },
+};
+
+const FALLBACK_BLOCKED_COLOR: CellColor = { bg: "bg-amber-50", text: "text-amber-700" };
+
+/** Cor de um bloqueio iCal por plataforma, a partir do nome dado ao link em Definições > iCal. */
+function colorForBlockedLabel(label: string): CellColor {
+  const l = label.toLowerCase();
+  if (l.includes("airbnb")) return SOURCE_COLOR.airbnb;
+  if (l.includes("booking")) return SOURCE_COLOR.booking;
+  if (l.includes("vrbo")) return SOURCE_COLOR.vrbo;
+  return FALLBACK_BLOCKED_COLOR;
+}
+
 const WEEKDAY_LABELS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const MONTH_LABELS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -67,12 +92,13 @@ function buildMonthGrid(year: number, month: number): string[] {
 }
 
 export default function Calendario() {
+  const router = useRouter();
   const today = useMemo(() => toISO(new Date()), []);
   const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(() => new Date().getMonth());
 
   const [bookings, setBookings] = useState<BookingLite[]>([]);
-  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [blockedBySource, setBlockedBySource] = useState<Map<string, string>>(new Map());
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [defaultPrice, setDefaultPrice] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -103,12 +129,14 @@ export default function Calendario() {
     const end = grid[grid.length - 1];
     Promise.all([
       fetch("/api/backoffice/bookings").then((r) => r.json()),
-      fetch("/api/availability").then((r) => r.json()),
+      fetch("/api/backoffice/blocked-dates").then((r) => r.json()),
       fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`).then((r) => r.json()),
       fetch("/api/backoffice/settings").then((r) => r.json()),
-    ]).then(([bookingsData, availabilityData, pricesData, settingsData]) => {
+    ]).then(([bookingsData, blockedData, pricesData, settingsData]) => {
       setBookings(bookingsData.bookings ?? []);
-      setBlockedDates(new Set<string>(availabilityData.blockedDates ?? []));
+      const blockedMap = new Map<string, string>();
+      for (const b of blockedData.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);
+      setBlockedBySource(blockedMap);
       const map: Record<string, number> = {};
       for (const p of pricesData.prices ?? []) {
         if (p.channel === "site") map[p.date] = p.price;
@@ -289,13 +317,22 @@ export default function Calendario() {
 
       <div className="flex items-center gap-4 text-xs text-gray-500 mb-4 flex-wrap">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-red-400" /> Reservado (site)
+          <span className="inline-block w-3 h-3 rounded-full bg-indigo-400" /> Reservado (site)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-amber-400" /> Bloqueado (OTA)
+          <span className="inline-block w-3 h-3 rounded-full bg-red-400" /> Airbnb
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-3 h-3 rounded-full bg-green-400" /> Livre
+          <span className="inline-block w-3 h-3 rounded-full bg-blue-400" /> Booking.com
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-green-500" /> VRBO
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-amber-400" /> Outro bloqueio (OTA)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-3 h-3 rounded-full bg-green-200" /> Livre
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-2.5 h-2.5 rounded-full bg-sky-500" /> Feriado PT
@@ -323,14 +360,19 @@ export default function Calendario() {
             {grid.map((date) => {
               const inMonth = new Date(date + "T00:00:00").getMonth() === viewMonth;
               const booking = bookingByDate.get(date);
-              const blocked = !booking && blockedDates.has(date);
+              const blockedLabel = !booking ? blockedBySource.get(date) : undefined;
               const isToday = date === today;
               const price = date in prices ? prices[date] : defaultPrice;
               const holidays = holidaysByDate.get(date) ?? [];
 
+              const cellColor: CellColor | null = booking
+                ? SOURCE_COLOR[booking.source] ?? SOURCE_COLOR.outros
+                : blockedLabel
+                ? colorForBlockedLabel(blockedLabel)
+                : null;
+
               let bg = "bg-white";
-              if (booking) bg = "bg-red-50";
-              else if (blocked) bg = "bg-amber-50";
+              if (cellColor) bg = cellColor.bg;
               else if (inMonth) bg = "bg-green-50/40";
 
               return (
@@ -356,11 +398,19 @@ export default function Calendario() {
                   </div>
 
                   {booking && (
-                    <p className="text-[11px] text-red-700 mt-1 truncate" title={booking.guestName}>
+                    <button
+                      onClick={() => router.push(`/backoffice/reservas/${booking.id}`)}
+                      className={`text-[11px] ${cellColor?.text ?? "text-gray-700"} mt-1 truncate block text-left hover:underline w-full`}
+                      title={`Abrir reserva de ${booking.guestName}`}
+                    >
                       {booking.guestName} · {SOURCE_LABEL[booking.source] ?? booking.source}
+                    </button>
+                  )}
+                  {!booking && blockedLabel && (
+                    <p className={`text-[11px] ${cellColor?.text ?? "text-amber-700"} mt-1 font-medium`}>
+                      {blockedLabel}
                     </p>
                   )}
-                  {blocked && <p className="text-[11px] text-amber-700 mt-1">Bloqueado</p>}
 
                   <div className="mt-2">
                     {editingDate === date ? (

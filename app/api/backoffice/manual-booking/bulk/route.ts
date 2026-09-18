@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { sql, ensureSchema } from "@/lib/db";
 
+// Ver nota em daily-prices/bulk/route.ts — importações grandes podem exceder o limite
+// de 10s por omissão da Vercel se o Supabase estiver a "acordar" de uma pausa.
+export const maxDuration = 30;
+
 interface BulkRow {
   source: string;
   guestName: string;

@@ -4,6 +4,10 @@ import { sql, ensureSchema, getSetting } from "@/lib/db";
 import { sendGenericEmail } from "@/lib/notifications";
 import { getTemplate, renderTemplate, buildTemplateVars, resolveGuestLanguage, MessageType } from "@/lib/message-templates";
 
+// Percorre todas as reservas + envia emails — pode ultrapassar o limite de 10s por
+// omissão da Vercel, especialmente com o Supabase a "acordar" de uma pausa.
+export const maxDuration = 60;
+
 interface AutomationRule {
   id: string;
   type: MessageType;
