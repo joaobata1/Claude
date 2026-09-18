@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { sql, ensureSchema, getSetting } from "@/lib/db";
 import { isRangeAvailable } from "@/lib/availability";
 import { createMbwayRequest, createCardPaymentLink } from "@/lib/ifthenpay";
+import { sendBookingConfirmationEmail } from "@/lib/booking-messages";
 
 class DatesUnavailableError extends Error {}
 
@@ -26,15 +27,17 @@ export async function POST(req: NextRequest) {
   // Verificação de disponibilidade + escrita da reserva na mesma transação serializable:
   // evita que duas reservas em simultâneo para as mesmas datas passem ambas a verificação
   // antes de qualquer uma delas ser gravada (double-booking).
+  let bookingNumber: number;
   try {
-    await sql.begin("isolation level serializable", async (tx) => {
+    [{ booking_number: bookingNumber }] = await sql.begin("isolation level serializable", async (tx) => {
       if (!(await isRangeAvailable(checkin, checkout, tx))) {
         throw new DatesUnavailableError();
       }
-      await tx`
+      return tx<{ booking_number: number }[]>`
         INSERT INTO bookings
         (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count, price_total, cleaning_cost, payment_status, payment_method)
         VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
+        RETURNING booking_number
       `;
     });
   } catch (err: any) {
@@ -46,11 +49,17 @@ export async function POST(req: NextRequest) {
     throw err;
   }
 
+  sendBookingConfirmationEmail(bookingId).catch((err) => console.error("Falha ao enviar email de confirmação:", err));
+
   try {
     if (paymentMethod === "mbway") {
       const result = await createMbwayRequest({ bookingId, amount: total, guestPhone });
       await sql`UPDATE bookings SET ifthenpay_request_id = ${result.RequestId ?? ""} WHERE id = ${bookingId}`;
       return NextResponse.json({ bookingId, status: "mbway_sent", total });
+    } else if (paymentMethod === "transferencia") {
+      const iban = (await getSetting("bank_iban")) ?? "";
+      const accountHolder = (await getSetting("bank_account_holder")) ?? "";
+      return NextResponse.json({ bookingId, bookingNumber, status: "bank_transfer", total, iban, accountHolder });
     } else {
       const result = await createCardPaymentLink({ bookingId, amount: total, guestName });
       return NextResponse.json({ bookingId, status: "redirect", paymentUrl: result.url, total });

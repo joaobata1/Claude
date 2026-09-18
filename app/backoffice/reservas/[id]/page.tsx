@@ -38,6 +38,7 @@ interface LogEntry {
   channel: string;
   language: string;
   automated: number;
+  body: string;
   sent_at: string;
 }
 
@@ -70,13 +71,17 @@ const PAYMENT_STATUSES = [
   { id: "paid", label: "Pago" },
   { id: "failed", label: "Falhado" },
   { id: "not_applicable", label: "Não aplicável (OTA)" },
+  { id: "cancelled", label: "Cancelada" },
 ];
 
 const MESSAGE_TYPE_LABEL: Record<string, string> = {
+  confirmacao: "Confirmação de reserva",
   chaves: "Chaves",
   instrucoes: "Instruções e regras",
+  cancelamento: "Cancelamento",
   custom1: "Mensagem personalizada 1",
   custom2: "Mensagem personalizada 2",
+  livre: "Mensagem livre",
 };
 
 function addDaysIso(iso: string, days: number): string {
@@ -100,6 +105,8 @@ export default function BookingDetail() {
   const [savedMsg, setSavedMsg] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [freeSubject, setFreeSubject] = useState("");
+  const [freeBody, setFreeBody] = useState("");
 
   function load() {
     Promise.all([
@@ -190,13 +197,13 @@ export default function BookingDetail() {
     setSending(null);
   }
 
-  async function sendMessage(type: string) {
+  async function sendMessage(type: string, extra?: { body?: string; subject?: string }): Promise<boolean> {
     setSending(type);
     setActionMsg(null);
     const res = await fetch(`/api/backoffice/bookings/${id}/send-message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type }),
+      body: JSON.stringify({ type, ...extra }),
     });
     const data = await res.json();
     if (res.ok) {
@@ -211,6 +218,34 @@ export default function BookingDetail() {
       setActionMsg({ text: data.error ?? "Erro ao enviar a mensagem.", isError: true });
     }
     setSending(null);
+    return res.ok;
+  }
+
+  async function cancelBooking() {
+    if (!confirm("Cancelar esta reserva? O hóspede vai ser notificado com a mensagem de cancelamento.")) return;
+    setActionMsg(null);
+    setSending("cancelar_reserva");
+    const res = await fetch(`/api/backoffice/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payment_status: "cancelled" }),
+    });
+    if (!res.ok) {
+      setActionMsg({ text: "Erro ao cancelar a reserva.", isError: true });
+      setSending(null);
+      return;
+    }
+    updateField("payment_status", "cancelled");
+    await sendMessage("cancelamento");
+  }
+
+  async function sendFreeMessage() {
+    if (!freeBody.trim()) return;
+    const ok = await sendMessage("livre", { body: freeBody, subject: freeSubject || "Mensagem — Aljezur Monte Clérigo" });
+    if (ok) {
+      setFreeSubject("");
+      setFreeBody("");
+    }
   }
 
   if (loading) return <main className="max-w-4xl mx-auto p-8 text-gray-500 text-sm">A carregar...</main>;
@@ -412,6 +447,13 @@ export default function BookingDetail() {
         </p>
         <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => sendMessage("confirmacao")}
+            disabled={sending !== null}
+            className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+          >
+            {sending === "confirmacao" ? "A enviar..." : "Enviar confirmação"}
+          </button>
+          <button
             onClick={generateKey}
             disabled={sending !== null}
             className="border rounded px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
@@ -447,26 +489,73 @@ export default function BookingDetail() {
             {sending === "custom2" ? "A enviar..." : "Mensagem personalizada 2"}
           </button>
         </div>
+
+        <div className="border-t mt-5 pt-4">
+          <p className="text-sm font-medium mb-2">Enviar mensagem livre</p>
+          <input
+            className="w-full border rounded px-3 py-2 text-sm mb-2"
+            placeholder="Assunto (só usado se o canal for email)"
+            value={freeSubject}
+            onChange={(e) => setFreeSubject(e.target.value)}
+          />
+          <textarea
+            className="w-full border rounded px-3 py-2 text-sm h-24"
+            placeholder="Escreva a mensagem para este hóspede..."
+            value={freeBody}
+            onChange={(e) => setFreeBody(e.target.value)}
+          />
+          <button
+            onClick={sendFreeMessage}
+            disabled={sending !== null || !freeBody.trim()}
+            className="mt-2 bg-gray-900 text-white rounded px-4 py-2 text-sm disabled:opacity-60"
+          >
+            {sending === "livre" ? "A enviar..." : "Enviar mensagem"}
+          </button>
+        </div>
+
         {actionMsg && (
           <p className={`text-sm mt-3 ${actionMsg.isError ? "text-red-600" : "text-green-700"}`}>{actionMsg.text}</p>
         )}
         <p className="text-xs text-gray-400 mt-3">
-          As mensagens usam os modelos configurados em Definições → Mensagens, no idioma escolhido acima.
+          As mensagens pré-configuradas usam os modelos de Definições → Mensagens, no idioma escolhido acima.
         </p>
 
         {log.length > 0 && (
           <div className="mt-4">
-            <p className="text-sm font-medium mb-2">Histórico de envios</p>
-            <ul className="text-sm text-gray-600 space-y-1">
+            <p className="text-sm font-medium mb-2">Histórico da conversa</p>
+            <ul className="text-sm space-y-2">
               {log.map((l, i) => (
-                <li key={i}>
-                  {new Date(l.sent_at).toLocaleString("pt-PT")} — {MESSAGE_TYPE_LABEL[l.type] ?? l.type} por{" "}
-                  {l.channel === "email" ? "email" : "WhatsApp"} ({l.language.toUpperCase()})
-                  {l.automated ? " · automático" : ""}
+                <li key={i} className="border rounded p-2 bg-gray-50">
+                  <p className="text-xs text-gray-500">
+                    {new Date(l.sent_at).toLocaleString("pt-PT")} — {MESSAGE_TYPE_LABEL[l.type] ?? l.type} por{" "}
+                    {l.channel === "email" ? "email" : "WhatsApp"} ({l.language.toUpperCase()})
+                    {l.automated ? " · automático" : ""}
+                  </p>
+                  {l.body && <p className="text-gray-700 mt-1 whitespace-pre-wrap">{l.body}</p>}
                 </li>
               ))}
             </ul>
           </div>
+        )}
+      </section>
+
+      <section className="border rounded-lg p-5 mb-6">
+        <h2 className="font-medium mb-1">Cancelar reserva</h2>
+        {booking.payment_status === "cancelled" ? (
+          <p className="text-sm text-gray-500">Esta reserva já está cancelada.</p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-500 mb-3">
+              Marca a reserva como cancelada e envia a mensagem de cancelamento ao hóspede.
+            </p>
+            <button
+              onClick={cancelBooking}
+              disabled={sending !== null}
+              className="border border-red-300 text-red-700 rounded px-4 py-2 text-sm hover:bg-red-50 disabled:opacity-60"
+            >
+              {sending === "cancelar_reserva" || sending === "cancelamento" ? "A cancelar..." : "Cancelar reserva"}
+            </button>
+          </>
         )}
       </section>
 

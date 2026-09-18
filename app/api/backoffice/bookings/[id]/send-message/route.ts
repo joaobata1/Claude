@@ -2,16 +2,32 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { sql, ensureSchema } from "@/lib/db";
 import { sendGenericEmail } from "@/lib/notifications";
-import { getTemplate, renderTemplate, MessageType, MessageLanguage } from "@/lib/message-templates";
+import {
+  getTemplate,
+  renderTemplate,
+  buildTemplateVars,
+  resolveGuestLanguage,
+  MessageType,
+} from "@/lib/message-templates";
 
-const VALID_TYPES: MessageType[] = ["chaves", "instrucoes", "custom1", "custom2"];
-const VALID_LANGUAGES: MessageLanguage[] = ["pt", "en", "fr", "es", "de"];
+const VALID_TYPES: (MessageType | "livre")[] = [
+  "confirmacao",
+  "chaves",
+  "instrucoes",
+  "cancelamento",
+  "custom1",
+  "custom2",
+  "livre",
+];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { type } = await req.json();
+  const { type, body: freeBody, subject: freeSubject } = await req.json();
   if (!VALID_TYPES.includes(type)) {
     return NextResponse.json({ error: "Tipo de mensagem inválido." }, { status: 400 });
+  }
+  if (type === "livre" && !String(freeBody ?? "").trim()) {
+    return NextResponse.json({ error: "Escreva uma mensagem antes de enviar." }, { status: 400 });
   }
 
   await ensureSchema();
@@ -20,30 +36,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Reserva não encontrada." }, { status: 404 });
   }
 
-  const language: MessageLanguage = VALID_LANGUAGES.includes(booking.guest_language) ? booking.guest_language : "pt";
-  const template = await getTemplate(type, language);
-  if (!template.body.trim()) {
-    return NextResponse.json(
-      { error: "Este modelo de mensagem ainda não está configurado — defina-o em Definições > Mensagens." },
-      { status: 400 }
-    );
+  const language = resolveGuestLanguage(booking.guest_language);
+
+  let subject: string;
+  let text: string;
+  if (type === "livre") {
+    subject = String(freeSubject ?? "");
+    text = String(freeBody);
+  } else {
+    const template = await getTemplate(type as MessageType, language);
+    if (!template.body.trim()) {
+      return NextResponse.json(
+        { error: "Este modelo de mensagem ainda não está configurado — defina-o em Definições > Mensagens." },
+        { status: 400 }
+      );
+    }
+    const vars = await buildTemplateVars(booking);
+    subject = renderTemplate(template.subject, vars);
+    text = renderTemplate(template.body, vars);
   }
 
-  const vars = {
-    nome: booking.guest_name ?? "",
-    checkin: booking.checkin ?? "",
-    checkout: booking.checkout ?? "",
-    codigo: booking.nuki_code ?? "",
-    numero_reserva: String(booking.booking_number ?? ""),
-  };
-  const subject = renderTemplate(template.subject, vars);
-  const text = renderTemplate(template.body, vars);
   const channel: "whatsapp" | "email" = booking.message_channel === "email" ? "email" : "whatsapp";
 
   async function logSend() {
     await sql`
-      INSERT INTO message_log (id, booking_id, type, channel, language, automated)
-      VALUES (${randomUUID()}, ${id}, ${type}, ${channel}, ${language}, 0)
+      INSERT INTO message_log (id, booking_id, type, channel, language, automated, body)
+      VALUES (${randomUUID()}, ${id}, ${type}, ${channel}, ${language}, 0, ${text})
     `;
     if (type === "chaves") {
       await sql`UPDATE bookings SET nuki_code_sent = 1 WHERE id = ${id}`;

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { sql, ensureSchema, getSetting } from "@/lib/db";
 import { sendGenericEmail } from "@/lib/notifications";
-import { getTemplate, renderTemplate, MessageType, MessageLanguage } from "@/lib/message-templates";
+import { getTemplate, renderTemplate, buildTemplateVars, resolveGuestLanguage, MessageType } from "@/lib/message-templates";
 
 interface AutomationRule {
   id: string;
@@ -64,9 +64,7 @@ export async function GET() {
         continue;
       }
 
-      const language: MessageLanguage = ["pt", "en", "fr", "es", "de"].includes(booking.guest_language)
-        ? booking.guest_language
-        : "pt";
+      const language = resolveGuestLanguage(booking.guest_language);
       const template = await getTemplate(rule.type, language);
       if (!template.body.trim()) {
         skipped++;
@@ -74,23 +72,18 @@ export async function GET() {
         continue;
       }
 
-      const vars = {
-        nome: booking.guest_name ?? "",
-        checkin: booking.checkin ?? "",
-        checkout: booking.checkout ?? "",
-        codigo: booking.nuki_code ?? "",
-        numero_reserva: String(booking.booking_number ?? ""),
-      };
+      const vars = await buildTemplateVars(booking);
+      const text = renderTemplate(template.body, vars);
       const result = await sendGenericEmail({
         to: booking.guest_email ?? "",
         subject: renderTemplate(template.subject, vars),
-        text: renderTemplate(template.body, vars),
+        text,
       });
 
       if (result.sent) {
         await sql`
-          INSERT INTO message_log (id, booking_id, type, channel, language, automated)
-          VALUES (${randomUUID()}, ${booking.id}, ${rule.type}, 'email', ${language}, 1)
+          INSERT INTO message_log (id, booking_id, type, channel, language, automated, body)
+          VALUES (${randomUUID()}, ${booking.id}, ${rule.type}, 'email', ${language}, 1, ${text})
         `;
         if (rule.type === "chaves") {
           await sql`UPDATE bookings SET nuki_code_sent = 1 WHERE id = ${booking.id}`;

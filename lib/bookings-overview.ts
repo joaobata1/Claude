@@ -36,6 +36,7 @@ export interface BookingOverviewRow {
 
 function paymentSemaphore(status: string): SemaphoreColor {
   if (status === "paid" || status === "not_applicable") return "green";
+  if (status === "cancelled") return "gray";
   if (status === "failed") return "red";
   return "red"; // pending
 }

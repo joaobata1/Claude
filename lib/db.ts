@@ -111,9 +111,11 @@ async function initSchema() {
       channel TEXT NOT NULL,
       language TEXT NOT NULL,
       automated INTEGER DEFAULT 0,
+      body TEXT DEFAULT '',
       sent_at TIMESTAMPTZ DEFAULT now()
     )
   `;
+  await sql`ALTER TABLE message_log ADD COLUMN IF NOT EXISTS body TEXT DEFAULT ''`;
 
   // Migração segura: adiciona colunas novas a bases de dados criadas antes desta versão
   await sql`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS commission_amount REAL DEFAULT 0`;
@@ -133,6 +135,8 @@ export const SETTINGS_KEYS = [
   "nuki_checkout_hour", // hora de fim da validade do código (0-23), ex: 12
   "ifthenpay_mbway_key",
   "ifthenpay_gateway_key",
+  "bank_iban", // IBAN mostrado nas mensagens quando o hóspede escolhe pagar por transferência
+  "bank_account_holder", // nome do titular da conta, mostrado junto ao IBAN
   "price_per_night",
   "cleaning_fee",
   "vonage_api_key",

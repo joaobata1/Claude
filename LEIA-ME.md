@@ -9,8 +9,11 @@ o raciocínio por trás de cada decisão.
 ## ✅ O que já está feito
 
 **Reservas e pagamento**
-- `app/reservar` — página pública: datas, dados do titular, pagamento (MB WAY/cartão), formulário de hóspedes
-- `app/api/book` — cria reserva + inicia pagamento ifthenpay
+- `app/reservar` — página pública: datas, dados do titular, pagamento (MB WAY/cartão/transferência
+  bancária), formulário de hóspedes. Na transferência bancária mostra o IBAN e o número de reserva
+  como referência (configurados em Definições → Pagamentos)
+- `app/api/book` — cria reserva + inicia pagamento ifthenpay (ou devolve os dados da transferência) +
+  dispara automaticamente a mensagem de confirmação por email (`lib/booking-messages.ts`)
 - `app/api/pay/callback` — confirma pagamento → liberta acesso (ver abaixo)
 - `lib/ifthenpay.ts` — integração MB WAY + link de pagamento por cartão
 
@@ -56,14 +59,18 @@ o raciocínio por trás de cada decisão.
   **Enviar instruções e regras** e 2 mensagens personalizadas — todas usam os modelos
   configurados em Definições → Mensagens, no idioma do hóspede, e ficam registadas no
   histórico de envios da reserva
-- **Definições → Mensagens**: um modelo de mensagem por tipo (chaves, instruções,
-  2 personalizadas) e por idioma (PT/EN/FR/ES/DE), com marcadores `{nome}` `{checkin}`
-  `{checkout}` `{codigo}` `{numero_reserva}`. Também tem as regras de **envio
-  automático** (X dias antes/depois do check-in ou check-out) — só é totalmente
-  automático para reservas com canal Email (via `/api/automation/run-scheduled-messages`,
-  a chamar por um cron externo); para WhatsApp não há API programável sem um provedor
-  pago (Twilio/Meta/Vonage), por isso a ficha da reserva mostra um lembrete pronto a
-  enviar manualmente quando chega a data
+- **Definições → Mensagens**: um modelo de mensagem por tipo (confirmação de reserva,
+  chaves, instruções, cancelamento, 2 personalizadas) e por idioma (PT/EN/FR/ES/DE), com
+  marcadores `{nome}` `{checkin}` `{checkout}` `{codigo}` `{numero_reserva}` `{iban}`
+  `{titular_conta}`. Também tem as regras de **envio automático** (X dias antes/depois
+  do check-in ou check-out) — só é totalmente automático para reservas com canal Email
+  (via `/api/automation/run-scheduled-messages`, a chamar por um cron externo); para
+  WhatsApp não há API programável sem um provedor pago (Twilio/Meta/Vonage), por isso a
+  ficha da reserva mostra um lembrete pronto a enviar manualmente quando chega a data
+- Na ficha da reserva: botão **Cancelar reserva** (marca como cancelada e envia a
+  mensagem de cancelamento) e um campo de **mensagem livre** para escrever e enviar
+  texto avulso ao hóspede — tudo fica no histórico da conversa, incluindo o texto de
+  cada mensagem enviada (pré-configurada ou livre)
 
 **Páginas de gestão**
 - `/backoffice/reservas` — folha de reservas com semáforos (pagamento, dados SIBA,

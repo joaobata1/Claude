@@ -27,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
   const guests = await getGuestsForBooking(id);
   const log = await sql`
-    SELECT type, channel, language, automated, sent_at FROM message_log
+    SELECT type, channel, language, automated, body, sent_at FROM message_log
     WHERE booking_id = ${id} ORDER BY sent_at DESC
   `;
   return NextResponse.json({ booking, guests, messageLog: log });

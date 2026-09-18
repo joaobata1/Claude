@@ -14,9 +14,10 @@ interface StoredState {
   guestName: string;
   guestEmail: string;
   guestPhone: string;
-  paymentMethod: "mbway" | "card";
+  paymentMethod: "mbway" | "card" | "transferencia";
   bookingId: string | null;
   releaseInfo: any;
+  bankDetails: { iban: string; accountHolder: string; total: number; bookingNumber: number } | null;
 }
 
 function loadStoredState(): Partial<StoredState> {
@@ -51,11 +52,14 @@ function Reservar() {
   const [guestName, setGuestName] = useState(stored.guestName ?? "");
   const [guestEmail, setGuestEmail] = useState(stored.guestEmail ?? "");
   const [guestPhone, setGuestPhone] = useState(stored.guestPhone ?? "");
-  const [paymentMethod, setPaymentMethod] = useState<"mbway" | "card">(stored.paymentMethod ?? "mbway");
+  const [paymentMethod, setPaymentMethod] = useState<"mbway" | "card" | "transferencia">(
+    stored.paymentMethod ?? "mbway"
+  );
   const [bookingId, setBookingId] = useState<string | null>(stored.bookingId ?? null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [releaseInfo, setReleaseInfo] = useState<any>(stored.releaseInfo ?? null);
+  const [bankDetails, setBankDetails] = useState<StoredState["bankDetails"]>(stored.bankDetails ?? null);
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
 
   const { guests, resize, update } = useGuestForm(guestsCount);
@@ -73,13 +77,26 @@ function Reservar() {
       paymentMethod,
       bookingId,
       releaseInfo,
+      bankDetails,
     };
     try {
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // sessionStorage indisponível (ex: modo privado) — sem persistência, mas o resto continua a funcionar
     }
-  }, [step, checkin, checkout, guestsCount, guestName, guestEmail, guestPhone, paymentMethod, bookingId, releaseInfo]);
+  }, [
+    step,
+    checkin,
+    checkout,
+    guestsCount,
+    guestName,
+    guestEmail,
+    guestPhone,
+    paymentMethod,
+    bookingId,
+    releaseInfo,
+    bankDetails,
+  ]);
 
   // Datas já ocupadas (reservas do site + OTAs), para avisar o cliente antes de submeter o formulário.
   useEffect(() => {
@@ -115,6 +132,14 @@ function Reservar() {
         // Pagamento por cartão: o cliente introduz os dados do cartão numa página da ifthenpay.
         window.location.href = data.paymentUrl;
         return;
+      }
+      if (data.status === "bank_transfer") {
+        setBankDetails({
+          iban: data.iban ?? "",
+          accountHolder: data.accountHolder ?? "",
+          total: data.total,
+          bookingNumber: data.bookingNumber,
+        });
       }
       setStep("hospedes");
     } catch {
@@ -226,10 +251,11 @@ function Reservar() {
             <select
               className="w-full border rounded px-3 py-2"
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card")}
+              onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card" | "transferencia")}
             >
               <option value="mbway">MB WAY</option>
               <option value="card">Cartão de crédito</option>
+              <option value="transferencia">Transferência bancária</option>
             </select>
           </div>
 
@@ -247,7 +273,20 @@ function Reservar() {
 
       {step === "hospedes" && (
         <div className="space-y-6">
-          <p className="text-sm text-green-600">Pedido de pagamento enviado. Enquanto confirma, preencha os dados dos hóspedes (obrigatório por lei).</p>
+          {bankDetails ? (
+            <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm">
+              <p className="font-medium text-amber-800 mb-2">
+                Para confirmar a reserva, faça a transferência de €{bankDetails.total.toFixed(2)} para:
+              </p>
+              <p className="text-amber-800">IBAN: {bankDetails.iban}</p>
+              {bankDetails.accountHolder && <p className="text-amber-800">Titular: {bankDetails.accountHolder}</p>}
+              <p className="text-amber-800">Referência: reserva nº {bankDetails.bookingNumber}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-green-600">
+              Pedido de pagamento enviado. Enquanto confirma, preencha os dados dos hóspedes (obrigatório por lei).
+            </p>
+          )}
           <GuestForm guests={guests} onChange={update} />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button onClick={handleSaveGuests} disabled={loading} className="w-full bg-gray-900 text-white rounded py-3 font-medium">
@@ -259,6 +298,16 @@ function Reservar() {
       {step === "confirmado" && (
         <div className="text-center py-12">
           <p className="text-xl font-medium mb-2">Reserva registada.</p>
+          {bankDetails && (
+            <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm text-left mb-6 max-w-sm mx-auto">
+              <p className="font-medium text-amber-800 mb-2">
+                Não se esqueça de transferir €{bankDetails.total.toFixed(2)} para:
+              </p>
+              <p className="text-amber-800">IBAN: {bankDetails.iban}</p>
+              {bankDetails.accountHolder && <p className="text-amber-800">Titular: {bankDetails.accountHolder}</p>}
+              <p className="text-amber-800">Referência: reserva nº {bankDetails.bookingNumber}</p>
+            </div>
+          )}
           {releaseInfo?.released ? (
             <p className="text-gray-500 text-sm">
               O código de acesso já foi enviado por SMS e email.

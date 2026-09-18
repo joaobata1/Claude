@@ -10,6 +10,8 @@ const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string
   nuki_checkout_hour: { label: "Hora de fim do código (check-out)", type: "number", hint: "0-23, ex: 12" },
   ifthenpay_mbway_key: { label: "ifthenpay - Chave MB WAY", type: "password" },
   ifthenpay_gateway_key: { label: "ifthenpay - Chave Gateway (Cartão)", type: "password" },
+  bank_iban: { label: "IBAN para transferência bancária", hint: "PT50 0000 0000 00000000000 00" },
+  bank_account_holder: { label: "Nome do titular da conta" },
   price_per_night: { label: "Preço por noite (€)" },
   cleaning_fee: { label: "Taxa de limpeza (€)" },
   vonage_api_key: { label: "Vonage - API Key (SMS)" },
@@ -37,8 +39,10 @@ const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string
 };
 
 const MESSAGE_TYPES: { id: string; label: string }[] = [
+  { id: "confirmacao", label: "Confirmação de reserva" },
   { id: "chaves", label: "Envio de chaves" },
   { id: "instrucoes", label: "Instruções e regras" },
+  { id: "cancelamento", label: "Cancelamento" },
   { id: "custom1", label: "Mensagem personalizada 1" },
   { id: "custom2", label: "Mensagem personalizada 2" },
 ];
@@ -71,7 +75,11 @@ const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   { id: "mensagens", label: "Mensagens", fields: [] },
   { id: "regras", label: "Regras & Preços", fields: ["price_per_night", "cleaning_fee", "cleaning_contact_phone"] },
   { id: "nuki", label: "Nuki", fields: ["nuki_api_token", "nuki_smartlock_id", "nuki_checkin_hour", "nuki_checkout_hour"] },
-  { id: "pagamentos", label: "Pagamentos", fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key"] },
+  {
+    id: "pagamentos",
+    label: "Pagamentos",
+    fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key", "bank_iban", "bank_account_holder"],
+  },
   {
     id: "notificacoes",
     label: "SMS & Email",
@@ -398,8 +406,10 @@ export default function Backoffice() {
               <code className="bg-gray-100 px-1 rounded">{"{checkin}"}</code>{" "}
               <code className="bg-gray-100 px-1 rounded">{"{checkout}"}</code>{" "}
               <code className="bg-gray-100 px-1 rounded">{"{codigo}"}</code>{" "}
-              <code className="bg-gray-100 px-1 rounded">{"{numero_reserva}"}</code> — são substituídos
-              automaticamente ao enviar.
+              <code className="bg-gray-100 px-1 rounded">{"{numero_reserva}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{iban}"}</code>{" "}
+              <code className="bg-gray-100 px-1 rounded">{"{titular_conta}"}</code> — são substituídos
+              automaticamente ao enviar (o IBAN e titular vêm de Definições → Pagamentos).
             </p>
 
             <div className="flex gap-1 mb-2 flex-wrap">
@@ -468,7 +478,7 @@ export default function Backoffice() {
                     value={r.type}
                     onChange={(e) => updateAutomationRule(r.id, { type: e.target.value })}
                   >
-                    {MESSAGE_TYPES.map((t) => (
+                    {MESSAGE_TYPES.filter((t) => t.id !== "confirmacao" && t.id !== "cancelamento").map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.label}
                       </option>

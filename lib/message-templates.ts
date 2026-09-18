@@ -1,11 +1,13 @@
-import { sql, ensureSchema } from "./db";
+import { sql, ensureSchema, getSetting } from "./db";
 
-export type MessageType = "chaves" | "instrucoes" | "custom1" | "custom2";
+export type MessageType = "confirmacao" | "chaves" | "instrucoes" | "cancelamento" | "custom1" | "custom2";
 export type MessageLanguage = "pt" | "en" | "fr" | "es" | "de";
 
 export const MESSAGE_TYPES: { id: MessageType; label: string }[] = [
+  { id: "confirmacao", label: "Confirmação de reserva" },
   { id: "chaves", label: "Envio de chaves" },
   { id: "instrucoes", label: "Instruções e regras" },
+  { id: "cancelamento", label: "Cancelamento" },
   { id: "custom1", label: "Mensagem personalizada 1" },
   { id: "custom2", label: "Mensagem personalizada 2" },
 ];
@@ -25,8 +27,35 @@ export interface MessageTemplate {
   body: string;
 }
 
-/** Placeholders disponíveis nos modelos: {nome} {checkin} {checkout} {codigo} {numero_reserva} */
+/** Placeholders disponíveis: {nome} {checkin} {checkout} {codigo} {numero_reserva} {iban} {titular_conta} */
 const DEFAULT_TEMPLATES: Record<MessageType, Record<MessageLanguage, { subject: string; body: string }>> = {
+  confirmacao: {
+    pt: {
+      subject: "Reserva confirmada – Aljezur Monte Clérigo",
+      body:
+        "Olá {nome},\n\nObrigado pela sua reserva (nº {numero_reserva}) no Aljezur - Monte Clérigo!\n\nCheck-in: {checkin}\nCheck-out: {checkout}\n\nVamos enviar-lhe os dados de acesso e as instruções de check-in mais perto da data.\n\nSe optou por pagamento por transferência bancária, os dados são:\nIBAN: {iban}\nTitular: {titular_conta}\n(indique o número de reserva {numero_reserva} como referência)\n\nAté já!",
+    },
+    en: {
+      subject: "Booking confirmed – Aljezur Monte Clérigo",
+      body:
+        "Hello {nome},\n\nThank you for your booking (#{numero_reserva}) at Aljezur - Monte Clérigo!\n\nCheck-in: {checkin}\nCheck-out: {checkout}\n\nWe'll send you the access details and check-in instructions closer to your arrival date.\n\nIf you chose to pay by bank transfer, here are the details:\nIBAN: {iban}\nAccount holder: {titular_conta}\n(please use booking number {numero_reserva} as the payment reference)\n\nSee you soon!",
+    },
+    fr: {
+      subject: "Réservation confirmée – Aljezur Monte Clérigo",
+      body:
+        "Bonjour {nome},\n\nMerci pour votre réservation (n° {numero_reserva}) à Aljezur - Monte Clérigo !\n\nArrivée : {checkin}\nDépart : {checkout}\n\nNous vous enverrons les informations d'accès et les instructions d'arrivée plus près de la date.\n\nSi vous avez choisi de payer par virement bancaire, voici les coordonnées :\nIBAN : {iban}\nTitulaire du compte : {titular_conta}\n(merci d'indiquer le numéro de réservation {numero_reserva} comme référence)\n\nÀ bientôt !",
+    },
+    es: {
+      subject: "Reserva confirmada – Aljezur Monte Clérigo",
+      body:
+        "Hola {nome},\n\n¡Gracias por su reserva (n.º {numero_reserva}) en Aljezur - Monte Clérigo!\n\nCheck-in: {checkin}\nCheck-out: {checkout}\n\nLe enviaremos los datos de acceso y las instrucciones de check-in más cerca de la fecha.\n\nSi eligió pagar por transferencia bancaria, estos son los datos:\nIBAN: {iban}\nTitular: {titular_conta}\n(indique el número de reserva {numero_reserva} como referencia)\n\n¡Hasta pronto!",
+    },
+    de: {
+      subject: "Buchung bestätigt – Aljezur Monte Clérigo",
+      body:
+        "Hallo {nome},\n\nVielen Dank für Ihre Buchung (Nr. {numero_reserva}) im Aljezur - Monte Clérigo!\n\nCheck-in: {checkin}\nCheck-out: {checkout}\n\nDie Zugangsdaten und Check-in-Anweisungen senden wir Ihnen näher am Anreisedatum.\n\nFalls Sie sich für eine Überweisung entschieden haben, hier die Bankdaten:\nIBAN: {iban}\nKontoinhaber: {titular_conta}\n(bitte die Buchungsnummer {numero_reserva} als Verwendungszweck angeben)\n\nBis bald!",
+    },
+  },
   chaves: {
     pt: {
       subject: "O seu código de acesso – Aljezur Monte Clérigo",
@@ -81,6 +110,33 @@ const DEFAULT_TEMPLATES: Record<MessageType, Record<MessageLanguage, { subject: 
         "Hallo {nome},\n\nHier sind die Anweisungen und Hausregeln für Ihren Aufenthalt (Buchung Nr. {numero_reserva}):\n\n- Check-in ab 16 Uhr am {checkin}, Check-out bis 12 Uhr am {checkout}\n- Rauchen in der Wohnung ist nicht gestattet\n- Bitte respektieren Sie die Nachtruhe der Nachbarn, insbesondere zwischen 22 und 8 Uhr\n- Bitte schließen Sie vor der Abreise alle Türen und Fenster und schalten Sie die Geräte aus\n\nWir wünschen Ihnen einen angenehmen Aufenthalt!",
     },
   },
+  cancelamento: {
+    pt: {
+      subject: "Reserva cancelada – Aljezur Monte Clérigo",
+      body:
+        "Olá {nome},\n\nA sua reserva (nº {numero_reserva}), com check-in a {checkin} e check-out a {checkout}, foi cancelada.\n\nSe tiver alguma dúvida sobre este cancelamento, contacte-nos.",
+    },
+    en: {
+      subject: "Booking cancelled – Aljezur Monte Clérigo",
+      body:
+        "Hello {nome},\n\nYour booking (#{numero_reserva}), check-in {checkin} and check-out {checkout}, has been cancelled.\n\nIf you have any questions about this cancellation, please contact us.",
+    },
+    fr: {
+      subject: "Réservation annulée – Aljezur Monte Clérigo",
+      body:
+        "Bonjour {nome},\n\nVotre réservation (n° {numero_reserva}), arrivée le {checkin} et départ le {checkout}, a été annulée.\n\nPour toute question concernant cette annulation, n'hésitez pas à nous contacter.",
+    },
+    es: {
+      subject: "Reserva cancelada – Aljezur Monte Clérigo",
+      body:
+        "Hola {nome},\n\nSu reserva (n.º {numero_reserva}), con check-in el {checkin} y check-out el {checkout}, ha sido cancelada.\n\nSi tiene alguna duda sobre esta cancelación, contáctenos.",
+    },
+    de: {
+      subject: "Buchung storniert – Aljezur Monte Clérigo",
+      body:
+        "Hallo {nome},\n\nIhre Buchung (Nr. {numero_reserva}) mit Check-in am {checkin} und Check-out am {checkout} wurde storniert.\n\nBei Fragen zu dieser Stornierung kontaktieren Sie uns bitte.",
+    },
+  },
   custom1: {
     pt: { subject: "", body: "" },
     en: { subject: "", body: "" },
@@ -103,6 +159,29 @@ export function getDefaultTemplate(type: MessageType, language: MessageLanguage)
 
 export function renderTemplate(text: string, vars: Record<string, string>): string {
   return text.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? "");
+}
+
+const VALID_LANGUAGES: MessageLanguage[] = MESSAGE_LANGUAGES.map((l) => l.id);
+
+/** A reserva pode ter um idioma inválido/antigo guardado — usa PT como fallback seguro. */
+export function resolveGuestLanguage(guestLanguage: string | null | undefined): MessageLanguage {
+  return VALID_LANGUAGES.includes(guestLanguage as MessageLanguage) ? (guestLanguage as MessageLanguage) : "pt";
+}
+
+/** Marcadores disponíveis em qualquer modelo de mensagem, a partir dos dados da reserva + definições. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function buildTemplateVars(booking: any): Promise<Record<string, string>> {
+  const iban = (await getSetting("bank_iban")) ?? "";
+  const accountHolder = (await getSetting("bank_account_holder")) ?? "";
+  return {
+    nome: booking.guest_name ?? "",
+    checkin: booking.checkin ?? "",
+    checkout: booking.checkout ?? "",
+    codigo: booking.nuki_code ?? "",
+    numero_reserva: String(booking.booking_number ?? ""),
+    iban,
+    titular_conta: accountHolder,
+  };
 }
 
 /** Modelo guardado no backoffice para este tipo+idioma, ou o modelo por omissão se ainda não foi personalizado. */
