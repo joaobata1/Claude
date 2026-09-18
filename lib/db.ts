@@ -132,6 +132,11 @@ export const SETTINGS_KEYS = [
   // Leitura automática de screenshots de reservas (Anthropic API)
   "ai_vision_api_key",
   "ai_vision_model", // ex: claude-sonnet-5 — consultar docs.claude.com para o modelo mais recente
+  // Conteúdo do site público
+  "cover_photo_url", // foto de capa (Supabase Storage)
+  "gallery_photo_urls", // JSON: string[] — fotos da galeria (Supabase Storage)
+  "site_description", // descrição da casa, mostrada na página inicial
+  "site_about", // texto "Sobre nós"
 ] as const;
 
 export async function getSetting(key: string): Promise<string | null> {

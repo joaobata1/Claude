@@ -1,9 +1,38 @@
-export default function Home() {
+import Link from "next/link";
+import { getAllSettings } from "@/lib/db";
+import BookingSearchWidget from "@/app/components/BookingSearchWidget";
+
+// Lê definições (preço, fotos, descrição) diretamente da base de dados a cada pedido —
+// sem isto, o Next.js pré-renderizava a página no build e ficava presa aos valores
+// dessa altura, ignorando alterações feitas depois no backoffice.
+export const dynamic = "force-dynamic";
+
+const FALLBACK_COVER = "https://a0.muscache.com/im/pictures/67298b26-029f-428d-8dfb-2044600ff3c5.jpg?im_w=1200";
+const DEFAULT_DESCRIPTION =
+  "A ligação perfeita entre a natureza, a praia e o campo. Mobília clara que dá ao apartamento uma aparência " +
+  "de verão — o espaço ideal para relaxar no Parque Nacional da Costa Vicentina, perto de Monte Clérigo.";
+
+export default async function Home() {
+  const settings = await getAllSettings();
+  const coverPhoto = settings.cover_photo_url || FALLBACK_COVER;
+  const description = settings.site_description || DEFAULT_DESCRIPTION;
+  const about = settings.site_about || "";
+  const price = parseFloat(settings.price_per_night ?? "0") || 0;
+  const cleaningFee = parseFloat(settings.cleaning_fee ?? "0") || 0;
+  const hasGallery = (() => {
+    try {
+      return JSON.parse(settings.gallery_photo_urls || "[]").length > 0;
+    } catch {
+      return false;
+    }
+  })();
+
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <section className="relative h-[60vh] bg-gray-900 flex items-end">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="https://a0.muscache.com/im/pictures/67298b26-029f-428d-8dfb-2044600ff3c5.jpg?im_w=1200"
+          src={coverPhoto}
           alt="Aljezur - Monte Clérigo"
           className="absolute inset-0 w-full h-full object-cover opacity-80"
         />
@@ -17,14 +46,17 @@ export default function Home() {
       </section>
 
       <section className="max-w-5xl mx-auto px-6 py-12 grid md:grid-cols-3 gap-10">
-        <div className="md:col-span-2 space-y-6">
+        <div className="md:col-span-2 space-y-8">
           <div>
-            <h2 className="text-2xl font-semibold mb-3">Sobre o alojamento</h2>
-            <p className="text-gray-600 leading-relaxed">
-              A ligação perfeita entre a natureza, a praia e o campo. Mobília clara que dá ao
-              apartamento uma aparência de verão — o espaço ideal para relaxar no Parque Nacional
-              da Costa Vicentina, perto de Monte Clérigo.
-            </p>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-2xl font-semibold">Sobre o alojamento</h2>
+              {hasGallery && (
+                <Link href="/fotos" className="text-sm text-gray-500 hover:text-gray-900 underline">
+                  Ver fotos →
+                </Link>
+              )}
+            </div>
+            <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{description}</p>
           </div>
 
           <div>
@@ -39,43 +71,19 @@ export default function Home() {
             </ul>
           </div>
 
+          {about && (
+            <div>
+              <h3 className="text-lg font-medium mb-3">Sobre nós</h3>
+              <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{about}</p>
+            </div>
+          )}
+
           <div className="text-sm text-gray-400 pt-4 border-t">
             Registo AL: 74669/AL
           </div>
         </div>
 
-        <aside className="border rounded-xl p-6 h-fit shadow-sm sticky top-6">
-          <p className="text-2xl font-semibold mb-1">
-            €120 <span className="text-base font-normal text-gray-500">/ noite</span>
-          </p>
-          <p className="text-sm text-gray-500 mb-4">Taxa de limpeza incluída no total</p>
-
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Check-in</label>
-                <input type="date" className="w-full border rounded px-2 py-2 text-sm" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Check-out</label>
-                <input type="date" className="w-full border rounded px-2 py-2 text-sm" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Hóspedes</label>
-              <input type="number" min={1} max={6} defaultValue={2} className="w-full border rounded px-2 py-2 text-sm" />
-            </div>
-          </div>
-
-          <a
-            href="/reservar"
-            className="mt-5 block text-center bg-gray-900 text-white rounded py-3 font-medium hover:bg-gray-800 transition"
-          >
-            Verificar disponibilidade
-          </a>
-
-          <p className="text-xs text-gray-400 text-center mt-3">MB WAY · Cartão de crédito</p>
-        </aside>
+        <BookingSearchWidget price={price} cleaningFee={cleaningFee} />
       </section>
     </main>
   );

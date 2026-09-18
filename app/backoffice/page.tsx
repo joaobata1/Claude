@@ -30,6 +30,8 @@ const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string
   siba_contacto_email: { label: "SIBA - Email do contacto" },
   ai_vision_api_key: { label: "Anthropic API Key (leitura de screenshots)", type: "password", hint: "console.anthropic.com" },
   ai_vision_model: { label: "Modelo de IA (leitura de screenshots)", hint: "ex: claude-sonnet-5" },
+  site_description: { label: "Descrição da casa" },
+  site_about: { label: "Sobre nós" },
 };
 
 const SECTIONS: { id: string; label: string; fields: string[] }[] = [
@@ -61,6 +63,7 @@ const SECTIONS: { id: string; label: string; fields: string[] }[] = [
     ],
   },
   { id: "ia", label: "IA (leitura de imagens)", fields: ["ai_vision_api_key", "ai_vision_model"] },
+  { id: "site", label: "Site", fields: ["site_description", "site_about"] },
 ];
 
 export default function Backoffice() {
@@ -70,6 +73,10 @@ export default function Backoffice() {
   const [savedMsg, setSavedMsg] = useState("");
   const [savedIsError, setSavedIsError] = useState(false);
   const [icalSources, setIcalSources] = useState<IcalSource[]>([]);
+  const [galleryPhotos, setGalleryPhotos] = useState<string[]>([]);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/backoffice/settings")
@@ -82,8 +89,87 @@ export default function Backoffice() {
         } catch {
           setIcalSources([]);
         }
+        try {
+          const parsed = data.gallery_photo_urls ? JSON.parse(data.gallery_photo_urls) : [];
+          setGalleryPhotos(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setGalleryPhotos([]);
+        }
       });
   }, []);
+
+  function fileToBase64(file: File): Promise<{ base64: string; mediaType: string }> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve({ base64: result.split(",")[1], mediaType: file.type });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadOnePhoto(file: File): Promise<string> {
+    const { base64, mediaType } = await fileToBase64(file);
+    const res = await fetch("/api/backoffice/photos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64, mediaType, fileName: file.name }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Falha ao enviar a foto.");
+    return data.url as string;
+  }
+
+  async function persistSetting(key: string, value: string) {
+    await fetch("/api/backoffice/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: value }),
+    });
+  }
+
+  async function handleCoverUpload(file: File) {
+    setPhotoError(null);
+    setUploadingCover(true);
+    try {
+      const url = await uploadOnePhoto(file);
+      setSettings((prev) => ({ ...prev, cover_photo_url: url }));
+      await persistSetting("cover_photo_url", url);
+    } catch (err: any) {
+      setPhotoError(err.message ?? "Erro ao enviar a foto de capa.");
+    }
+    setUploadingCover(false);
+  }
+
+  async function handleGalleryUpload(files: FileList) {
+    setPhotoError(null);
+    setUploadingGallery(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) {
+        uploaded.push(await uploadOnePhoto(file));
+      }
+      const next = [...galleryPhotos, ...uploaded];
+      setGalleryPhotos(next);
+      await persistSetting("gallery_photo_urls", JSON.stringify(next));
+    } catch (err: any) {
+      setPhotoError(err.message ?? "Erro ao enviar fotos da galeria.");
+    }
+    setUploadingGallery(false);
+  }
+
+  async function handleGalleryRemove(url: string) {
+    const next = galleryPhotos.filter((u) => u !== url);
+    setGalleryPhotos(next);
+    await persistSetting("gallery_photo_urls", JSON.stringify(next));
+    fetch("/api/backoffice/photos", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    }).catch(() => {});
+  }
 
   function addIcalSource() {
     setIcalSources([...icalSources, { id: crypto.randomUUID(), label: "", url: "", commissionPercent: 0 }]);
@@ -255,7 +341,89 @@ export default function Backoffice() {
         </section>
       )}
 
-      {activeSection.fields.length > 0 && section !== "regras" && (
+      {section === "site" && (
+        <section className="space-y-8">
+          <div>
+            <h2 className="text-lg font-medium mb-1">Foto de capa</h2>
+            <p className="text-sm text-gray-500 mb-3">Mostrada no topo da página inicial do site.</p>
+            {settings.cover_photo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={settings.cover_photo_url}
+                alt="Foto de capa atual"
+                className="w-full max-w-sm h-40 object-cover rounded-lg border mb-3"
+              />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingCover}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleCoverUpload(file);
+                e.target.value = "";
+              }}
+              className="text-sm"
+            />
+            {uploadingCover && <p className="text-xs text-gray-400 mt-1">A enviar...</p>}
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium mb-1">Galeria de fotos</h2>
+            <p className="text-sm text-gray-500 mb-3">Mostradas na página de fotos do site (pode escolher várias de uma vez).</p>
+            {galleryPhotos.length > 0 && (
+              <div className="flex flex-wrap gap-3 mb-3">
+                {galleryPhotos.map((url) => (
+                  <div key={url} className="relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt="" className="w-24 h-24 object-cover rounded border" />
+                    <button
+                      onClick={() => handleGalleryRemove(url)}
+                      className="absolute -top-2 -right-2 bg-white border rounded-full w-6 h-6 text-red-500 text-sm hover:bg-red-50"
+                      aria-label="Remover foto"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              disabled={uploadingGallery}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) handleGalleryUpload(e.target.files);
+                e.target.value = "";
+              }}
+              className="text-sm"
+            />
+            {uploadingGallery && <p className="text-xs text-gray-400 mt-1">A enviar...</p>}
+          </div>
+
+          {photoError && <p className="text-sm text-red-600">{photoError}</p>}
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Descrição da casa</label>
+            <textarea
+              className="w-full border rounded px-3 py-2 h-28"
+              value={settings.site_description ?? ""}
+              onChange={(e) => setSettings({ ...settings, site_description: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Sobre nós</label>
+            <textarea
+              className="w-full border rounded px-3 py-2 h-28"
+              value={settings.site_about ?? ""}
+              onChange={(e) => setSettings({ ...settings, site_about: e.target.value })}
+            />
+          </div>
+        </section>
+      )}
+
+      {activeSection.fields.length > 0 && section !== "regras" && section !== "site" && (
         <section>
           <div className="space-y-3">
             {activeSection.fields.map((key) => {

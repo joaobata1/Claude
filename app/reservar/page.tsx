@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
 
 const STORAGE_KEY = "aljezur-reserva-em-curso";
@@ -40,12 +41,13 @@ function rangeOverlapsBlocked(checkin: string, checkout: string, blocked: Set<st
   return false;
 }
 
-export default function Reservar() {
+function Reservar() {
+  const searchParams = useSearchParams();
   const stored = loadStoredState();
   const [step, setStep] = useState<"datas" | "hospedes" | "confirmado">(stored.step ?? "datas");
-  const [checkin, setCheckin] = useState(stored.checkin ?? "");
-  const [checkout, setCheckout] = useState(stored.checkout ?? "");
-  const [guestsCount, setGuestsCount] = useState(stored.guestsCount ?? 2);
+  const [checkin, setCheckin] = useState(stored.checkin ?? searchParams.get("checkin") ?? "");
+  const [checkout, setCheckout] = useState(stored.checkout ?? searchParams.get("checkout") ?? "");
+  const [guestsCount, setGuestsCount] = useState(stored.guestsCount ?? (Number(searchParams.get("guests")) || 2));
   const [guestName, setGuestName] = useState(stored.guestName ?? "");
   const [guestEmail, setGuestEmail] = useState(stored.guestEmail ?? "");
   const [guestPhone, setGuestPhone] = useState(stored.guestPhone ?? "");
@@ -274,5 +276,13 @@ export default function Reservar() {
         </div>
       )}
     </main>
+  );
+}
+
+export default function ReservarPage() {
+  return (
+    <Suspense>
+      <Reservar />
+    </Suspense>
   );
 }

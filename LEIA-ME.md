@@ -30,15 +30,25 @@ o raciocínio por trás de cada decisão.
 - `lib/siba.ts` — submissão SOAP real (biblioteca `node-siba`), **só hóspedes estrangeiros**
 - `app/api/siba/daily-export` — relatório diário (consulta) e submissão
 
-**Backoffice** (`app/backoffice`)
-- Definições: Nuki, Vonage, Resend, ifthenpay, SIBA, IA de leitura de imagens, contacto da limpeza
+**Backoffice** (`app/backoffice`) — separadores: Reservas, Nova reserva, Calendário, Preços, Limpeza, Definições
+- Definições organizadas em sub-separadores: iCal, Regras & Preços, Nuki, Pagamentos,
+  SMS & Email, SIBA, IA, Site
 - Links iCal dinâmicos, cada um com **comissão % configurável**
 - Interruptor ON/OFF: obrigar dados dos hóspedes antes de enviar chave + check-in
-- Reserva manual (Airbnb/Booking/VRBO) com:
+- **Calendário** (`/backoffice/calendario`): vista mensal com reservas e bloqueios OTA,
+  preço por dia editável em linha, e popup para mudar preços em massa (intervalos de
+  datas + dias da semana)
+- **Nova reserva** (`/backoffice/nova-reserva`), para Airbnb/Booking/VRBO/Outros:
   - **Leitura automática por IA**: cole (Ctrl+V) ou carregue uma screenshot da reserva
     e os campos são pré-preenchidos (`lib/ai-vision.ts`, API da Anthropic)
   - Campos financeiros: preço total, comissão, custo de limpeza, nº de reserva
   - Botão WhatsApp direto para o hóspede
+  - **Importação em massa**: cole linhas copiadas do Excel e importe várias reservas de
+    uma vez (`lib/excel-paste-parser.ts`) — não envia código Nuki nem SMS/email
+    automaticamente, ao contrário do registo manual normal
+- **Fotos e conteúdo do site** (sub-separador "Site" nas Definições): foto de capa,
+  galeria de fotos (Supabase Storage), descrição da casa e texto "Sobre nós" — tudo
+  refletido de imediato no site público, sem precisar de novo deploy
 
 **Páginas de gestão**
 - `/backoffice/reservas` — folha de reservas com semáforos (pagamento, dados SIBA,
@@ -49,6 +59,12 @@ o raciocínio por trás de cada decisão.
   colunas da folha original do utilizador (Nome, Check in, Check Out, Noites, n. Dias
   entre reservas, Adultos, Crianças, Obs, Plataforma, OBS, RESERVA, Contacto, Valor,
   Comissão, Limpeza, Liquido)
+
+**Site público**
+- `/` — página inicial dinâmica: preço, descrição e foto de capa vêm do backoffice
+- `/fotos` — galeria de fotos do alojamento
+- `/reservar` — verifica disponibilidade em tempo real ao escolher datas, mantém os
+  dados preenchidos mesmo que a página recarregue (ex: ao trocar para a app do MB WAY)
 
 ---
 
@@ -71,6 +87,7 @@ o raciocínio por trás de cada decisão.
 |---|---|
 | `BACKOFFICE_PASSWORD` | Palavra-passe de acesso ao `/backoffice`. **Obrigatória** — ver `.env.example` |
 | `BACKOFFICE_SESSION_SECRET` | Opcional, segredo para assinar o cookie de sessão (senão usa a palavra-passe acima) |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Para a foto de capa e galeria (Supabase Storage). Sem isto, o upload de fotos falha com um erro claro — o resto do site continua a funcionar. Ver `.env.example` para onde obter e o passo de criar o bucket "fotos" público. |
 
 ### 2. Infraestrutura
 - [ ] Domínio próprio (por agora o site está no domínio `.vercel.app` gerado automaticamente)
