@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAllHolidaysByDate, type Holiday, type HolidayCountry } from "../../../lib/holidays";
+import { newId } from "@/lib/id";
 import LoadingSpinner from "../../components/LoadingSpinner";
 
 const HOLIDAY_DOT_COLOR: Record<HolidayCountry, string> = {
@@ -120,7 +121,7 @@ export default function Calendario() {
   const [savingDate, setSavingDate] = useState<string | null>(null);
 
   const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkRanges, setBulkRanges] = useState<DateRange[]>([{ id: crypto.randomUUID(), start: "", end: "" }]);
+  const [bulkRanges, setBulkRanges] = useState<DateRange[]>([{ id: newId(), start: "", end: "" }]);
   const [bulkWeekdays, setBulkWeekdays] = useState<Set<number>>(new Set());
   const [bulkPrice, setBulkPrice] = useState("");
   const [bulkResult, setBulkResult] = useState<string | null>(null);
@@ -128,7 +129,7 @@ export default function Calendario() {
   const [bulkSlow, setBulkSlow] = useState(false);
 
   const [tarifaOpen, setTarifaOpen] = useState(false);
-  const [tarifaRanges, setTarifaRanges] = useState<DateRange[]>([{ id: crypto.randomUUID(), start: "", end: "" }]);
+  const [tarifaRanges, setTarifaRanges] = useState<DateRange[]>([{ id: newId(), start: "", end: "" }]);
   const [tarifaWeekdays, setTarifaWeekdays] = useState<Set<number>>(new Set());
   const [tarifaPlanId, setTarifaPlanId] = useState("");
   const [tarifaResult, setTarifaResult] = useState<string | null>(null);
@@ -239,7 +240,7 @@ export default function Calendario() {
   }
 
   function addBulkRange() {
-    setBulkRanges([...bulkRanges, { id: crypto.randomUUID(), start: "", end: "" }]);
+    setBulkRanges([...bulkRanges, { id: newId(), start: "", end: "" }]);
   }
 
   function updateBulkRange(id: string, field: "start" | "end", value: string) {
@@ -330,7 +331,7 @@ export default function Calendario() {
   }
 
   function addTarifaRange() {
-    setTarifaRanges([...tarifaRanges, { id: crypto.randomUUID(), start: "", end: "" }]);
+    setTarifaRanges([...tarifaRanges, { id: newId(), start: "", end: "" }]);
   }
 
   function updateTarifaRange(id: string, field: "start" | "end", value: string) {

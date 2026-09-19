@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { IcalSource } from "@/lib/ical-sync";
+import { newId } from "@/lib/id";
 
 const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string }> = {
   nuki_api_token: { label: "Nuki - API Token", type: "password" },
@@ -173,7 +174,7 @@ export default function Backoffice() {
           } else {
             // Migração: sem taxas configuradas ainda — usa o valor antigo de "cleaning_fee" como ponto de partida.
             const legacyCleaningFee = parseFloat(data.cleaning_fee ?? "0") || 0;
-            setFees(legacyCleaningFee > 0 ? [{ id: crypto.randomUUID(), name: "Limpeza", value: legacyCleaningFee, type: "fixed" }] : []);
+            setFees(legacyCleaningFee > 0 ? [{ id: newId(), name: "Limpeza", value: legacyCleaningFee, type: "fixed" }] : []);
           }
         } catch {
           setFees([]);
@@ -308,7 +309,7 @@ export default function Backoffice() {
   }
 
   function addIcalSource() {
-    setIcalSources([...icalSources, { id: crypto.randomUUID(), label: "", url: "", commissionPercent: 0 }]);
+    setIcalSources([...icalSources, { id: newId(), label: "", url: "", commissionPercent: 0 }]);
   }
 
   function updateIcalSource(index: number, field: "label" | "url" | "commissionPercent", value: string) {
@@ -324,7 +325,7 @@ export default function Backoffice() {
   }
 
   function addFee() {
-    setFees((prev) => [...prev, { id: crypto.randomUUID(), name: "", value: 0, type: "fixed" }]);
+    setFees((prev) => [...prev, { id: newId(), name: "", value: 0, type: "fixed" }]);
   }
 
   function updateFee(index: number, field: "name" | "value" | "type", value: string) {
@@ -343,7 +344,7 @@ export default function Backoffice() {
     setRatePlans((prev) => [
       ...prev,
       {
-        id: crypto.randomUUID(),
+        id: newId(),
         name: "",
         color: "#0ea5e9",
         cancellationDays: null,
@@ -400,7 +401,7 @@ export default function Backoffice() {
   function addAutomationRule() {
     setAutomationRules((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), type: "chaves", daysOffset: -1, relativeTo: "checkin", enabled: true },
+      { id: newId(), type: "chaves", daysOffset: -1, relativeTo: "checkin", enabled: true },
     ]);
   }
 

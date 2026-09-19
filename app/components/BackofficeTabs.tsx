@@ -11,6 +11,7 @@ const TABS = [
   { href: "/backoffice/precos", label: "Preços" },
   { href: "/backoffice/limpeza", label: "Limpeza" },
   { href: "/backoffice", label: "Definições" },
+  { href: "/backoffice/diagnostico", label: "Diagnóstico" },
 ];
 
 export default function BackofficeTabs() {
