@@ -46,7 +46,6 @@ export default function Precos() {
   useEffect(() => {
     const start = dates[0];
     const end = dates[dates.length - 1];
-    setLoadError(null);
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
@@ -59,6 +58,7 @@ export default function Precos() {
     ])
       .then(([settingsData, pricesData]) => {
         if (cancelled) return;
+        setLoadError(null);
         try {
           const parsed = settingsData.ical_sources ? JSON.parse(settingsData.ical_sources) : [];
           setIcalSources(Array.isArray(parsed) ? parsed : []);

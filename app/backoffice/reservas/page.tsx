@@ -66,7 +66,6 @@ export default function Reservas() {
   const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    setLoadError(null);
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
@@ -75,6 +74,7 @@ export default function Reservas() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
+        setLoadError(null);
         setBookings(data.bookings ?? []);
         setLoading(false);
       })

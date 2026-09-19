@@ -130,7 +130,6 @@ export default function Calendario() {
   useEffect(() => {
     const start = grid[0];
     const end = grid[grid.length - 1];
-    setLoadError(null);
 
     // Sem isto, uma resposta lenta ou falhada (ex: Supabase a acordar de uma pausa)
     // deixava o "A carregar..." preso para sempre, sem nunca chamar setLoading(false).
@@ -150,6 +149,7 @@ export default function Calendario() {
     ])
       .then(([bookingsData, blockedData, pricesData, settingsData]) => {
         if (cancelled) return;
+        setLoadError(null);
         setBookings(bookingsData.bookings ?? []);
         const blockedMap = new Map<string, string>();
         for (const b of blockedData.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);

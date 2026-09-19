@@ -21,7 +21,6 @@ export default function Limpeza() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    setLoadError(null);
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
@@ -32,6 +31,7 @@ export default function Limpeza() {
     ])
       .then(([bookingsData, settingsData]) => {
         if (cancelled) return;
+        setLoadError(null);
         const today = new Date().toISOString().slice(0, 10);
         const list = (bookingsData.bookings ?? [])
           .filter((b: any) => b.checkout >= today) // ainda relevante para limpeza (a decorrer ou futura)

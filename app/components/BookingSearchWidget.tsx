@@ -2,9 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { getDictionary, interpolate, type Locale } from "@/lib/i18n";
 
-export default function BookingSearchWidget({ price, cleaningFee }: { price: number; cleaningFee: number }) {
+export default function BookingSearchWidget({
+  price,
+  cleaningFee,
+  locale,
+}: {
+  price: number;
+  cleaningFee: number;
+  locale: Locale;
+}) {
   const router = useRouter();
+  const dict = getDictionary(locale).widget;
   const [checkin, setCheckin] = useState("");
   const [checkout, setCheckout] = useState("");
   const [guestsCount, setGuestsCount] = useState(2);
@@ -18,18 +28,18 @@ export default function BookingSearchWidget({ price, cleaningFee }: { price: num
   }
 
   return (
-    <aside className="border rounded-xl p-6 h-fit shadow-sm sticky top-6">
+    <aside className="border rounded-xl p-6 h-fit shadow-sm sticky top-24 bg-white">
       <p className="text-2xl font-semibold mb-1">
-        €{price} <span className="text-base font-normal text-gray-500">/ noite</span>
+        €{price} <span className="text-base font-normal text-gray-500">{dict.perNight}</span>
       </p>
       <p className="text-sm text-gray-500 mb-4">
-        {cleaningFee > 0 ? `+ €${cleaningFee} taxa de limpeza` : "Taxa de limpeza incluída no total"}
+        {cleaningFee > 0 ? interpolate(dict.cleaningFeeExtra, { fee: cleaningFee }) : dict.cleaningFeeIncluded}
       </p>
 
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Check-in</label>
+            <label className="block text-xs text-gray-500 mb-1">{dict.checkin}</label>
             <input
               type="date"
               className="w-full border rounded px-2 py-2 text-sm"
@@ -39,7 +49,7 @@ export default function BookingSearchWidget({ price, cleaningFee }: { price: num
             />
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Check-out</label>
+            <label className="block text-xs text-gray-500 mb-1">{dict.checkout}</label>
             <input
               type="date"
               className="w-full border rounded px-2 py-2 text-sm"
@@ -50,7 +60,7 @@ export default function BookingSearchWidget({ price, cleaningFee }: { price: num
           </div>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Hóspedes</label>
+          <label className="block text-xs text-gray-500 mb-1">{dict.guests}</label>
           <input
             type="number"
             min={1}
@@ -66,10 +76,10 @@ export default function BookingSearchWidget({ price, cleaningFee }: { price: num
         onClick={handleSearch}
         className="mt-5 block w-full text-center bg-gray-900 text-white rounded py-3 font-medium hover:bg-gray-800 transition"
       >
-        Verificar disponibilidade
+        {dict.checkAvailability}
       </button>
 
-      <p className="text-xs text-gray-400 text-center mt-3">MB WAY · Cartão de crédito</p>
+      <p className="text-xs text-gray-400 text-center mt-3">{dict.paymentMethods}</p>
     </aside>
   );
 }

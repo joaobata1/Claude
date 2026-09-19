@@ -3,6 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
+import LanguageSwitcher from "@/app/components/LanguageSwitcher";
+import { useLocale } from "@/app/components/useLocale";
+import { getDictionary, interpolate } from "@/lib/i18n";
 
 const STORAGE_KEY = "aljezur-reserva-em-curso";
 
@@ -45,6 +48,8 @@ function rangeOverlapsBlocked(checkin: string, checkout: string, blocked: Set<st
 function Reservar() {
   const searchParams = useSearchParams();
   const stored = loadStoredState();
+  const [locale, setLocale] = useLocale();
+  const t = getDictionary(locale).reservar;
   const [step, setStep] = useState<"datas" | "hospedes" | "confirmado">(stored.step ?? "datas");
   const [checkin, setCheckin] = useState(stored.checkin ?? searchParams.get("checkin") ?? "");
   const [checkout, setCheckout] = useState(stored.checkout ?? searchParams.get("checkout") ?? "");
@@ -119,7 +124,7 @@ function Reservar() {
   async function handleBook() {
     setError(null);
     if (datesUnavailable) {
-      setError("Essas datas já não estão disponíveis. Escolha outro intervalo.");
+      setError(t.datesUnavailable);
       return;
     }
     setLoading(true);
@@ -131,7 +136,7 @@ function Reservar() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Erro ao criar reserva.");
+        setError(data.error ?? t.errorGeneric);
         setLoading(false);
         return;
       }
@@ -151,7 +156,7 @@ function Reservar() {
       }
       setStep("hospedes");
     } catch {
-      setError("Erro de ligação. Tente novamente.");
+      setError(t.errorConnection);
     }
     setLoading(false);
   }
@@ -176,7 +181,7 @@ function Reservar() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setError(data.error ?? "Erro ao guardar dados dos hóspedes.");
+      setError(data.error ?? t.errorSavingGuests);
       setLoading(false);
       return;
     }
@@ -192,13 +197,18 @@ function Reservar() {
 
   return (
     <main className="max-w-lg mx-auto p-8">
-      <h1 className="text-2xl font-semibold mb-6">Reservar — {siteName}</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-semibold">
+          {t.heading} — {siteName}
+        </h1>
+        <LanguageSwitcher active={locale} onChange={setLocale} />
+      </div>
 
       {step === "datas" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Check-in</label>
+              <label className="block text-sm text-gray-600 mb-1">{getDictionary(locale).widget.checkin}</label>
               <input
                 type="date"
                 className="w-full border rounded px-3 py-2"
@@ -208,7 +218,7 @@ function Reservar() {
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-1">Check-out</label>
+              <label className="block text-sm text-gray-600 mb-1">{getDictionary(locale).widget.checkout}</label>
               <input
                 type="date"
                 className="w-full border rounded px-3 py-2"
@@ -219,14 +229,10 @@ function Reservar() {
             </div>
           </div>
 
-          {datesUnavailable && (
-            <p className="text-red-600 text-sm">
-              Essas datas já não estão disponíveis. Escolha outro intervalo.
-            </p>
-          )}
+          {datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Número de hóspedes</label>
+            <label className="block text-sm text-gray-600 mb-1">{t.guestsCount}</label>
             <input
               type="number"
               min={1}
@@ -242,28 +248,28 @@ function Reservar() {
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Nome do titular da reserva</label>
+            <label className="block text-sm text-gray-600 mb-1">{t.holderName}</label>
             <input className="w-full border rounded px-3 py-2" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Email</label>
+            <label className="block text-sm text-gray-600 mb-1">{t.email}</label>
             <input className="w-full border rounded px-3 py-2" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Telefone (com indicativo, ex: 351912345678)</label>
+            <label className="block text-sm text-gray-600 mb-1">{t.phone}</label>
             <input className="w-full border rounded px-3 py-2" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-600 mb-1">Método de pagamento</label>
+            <label className="block text-sm text-gray-600 mb-1">{t.paymentMethod}</label>
             <select
               className="w-full border rounded px-3 py-2"
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card" | "transferencia")}
             >
-              <option value="mbway">MB WAY</option>
-              <option value="card">Cartão de crédito</option>
-              <option value="transferencia">Transferência bancária</option>
+              <option value="mbway">{t.payMbway}</option>
+              <option value="card">{t.payCard}</option>
+              <option value="transferencia">{t.payTransfer}</option>
             </select>
           </div>
 
@@ -274,7 +280,7 @@ function Reservar() {
             disabled={loading || datesUnavailable || !checkin || !checkout}
             className="w-full bg-gray-900 text-white rounded py-3 font-medium disabled:opacity-50"
           >
-            {loading ? "A processar..." : "Continuar para pagamento"}
+            {loading ? t.processing : t.continueToPayment}
           </button>
         </div>
       )}
@@ -284,51 +290,54 @@ function Reservar() {
           {bankDetails ? (
             <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm">
               <p className="font-medium text-amber-800 mb-2">
-                Para confirmar a reserva, faça a transferência de €{bankDetails.total.toFixed(2)} para:
+                {interpolate(t.transferInstructions, { amount: `€${bankDetails.total.toFixed(2)}` })}
               </p>
-              <p className="text-amber-800">IBAN: {bankDetails.iban}</p>
-              {bankDetails.accountHolder && <p className="text-amber-800">Titular: {bankDetails.accountHolder}</p>}
-              <p className="text-amber-800">Referência: reserva nº {bankDetails.bookingNumber}</p>
+              <p className="text-amber-800">
+                {t.transferIban}: {bankDetails.iban}
+              </p>
+              {bankDetails.accountHolder && (
+                <p className="text-amber-800">
+                  {t.transferHolder}: {bankDetails.accountHolder}
+                </p>
+              )}
+              <p className="text-amber-800">{interpolate(t.transferReference, { number: bankDetails.bookingNumber })}</p>
             </div>
           ) : (
-            <p className="text-sm text-green-600">
-              Pedido de pagamento enviado. Enquanto confirma, preencha os dados dos hóspedes (obrigatório por lei).
-            </p>
+            <p className="text-sm text-green-600">{t.paymentSentGuestInfo}</p>
           )}
-          <GuestForm guests={guests} onChange={update} />
+          <GuestForm guests={guests} onChange={update} locale={locale} />
           {error && <p className="text-red-600 text-sm">{error}</p>}
           <button onClick={handleSaveGuests} disabled={loading} className="w-full bg-gray-900 text-white rounded py-3 font-medium">
-            {loading ? "A guardar..." : "Concluir reserva"}
+            {loading ? t.saving : t.saveGuests}
           </button>
         </div>
       )}
 
       {step === "confirmado" && (
         <div className="text-center py-12">
-          <p className="text-xl font-medium mb-2">Reserva registada.</p>
+          <p className="text-xl font-medium mb-2">{t.confirmed}</p>
           {bankDetails && (
             <div className="border border-amber-300 bg-amber-50 rounded-lg p-4 text-sm text-left mb-6 max-w-sm mx-auto">
               <p className="font-medium text-amber-800 mb-2">
-                Não se esqueça de transferir €{bankDetails.total.toFixed(2)} para:
+                {interpolate(t.dontForgetTransfer, { amount: `€${bankDetails.total.toFixed(2)}` })}
               </p>
-              <p className="text-amber-800">IBAN: {bankDetails.iban}</p>
-              {bankDetails.accountHolder && <p className="text-amber-800">Titular: {bankDetails.accountHolder}</p>}
-              <p className="text-amber-800">Referência: reserva nº {bankDetails.bookingNumber}</p>
+              <p className="text-amber-800">
+                {t.transferIban}: {bankDetails.iban}
+              </p>
+              {bankDetails.accountHolder && (
+                <p className="text-amber-800">
+                  {t.transferHolder}: {bankDetails.accountHolder}
+                </p>
+              )}
+              <p className="text-amber-800">{interpolate(t.transferReference, { number: bankDetails.bookingNumber })}</p>
             </div>
           )}
           {releaseInfo?.released ? (
-            <p className="text-gray-500 text-sm">
-              O código de acesso já foi enviado por SMS e email.
-            </p>
+            <p className="text-gray-500 text-sm">{t.accessReleased}</p>
           ) : releaseInfo?.reason === "waiting_guest_data" ? (
-            <p className="text-gray-500 text-sm">
-              O pagamento foi confirmado, mas o código de acesso só é enviado depois de todos os hóspedes
-              terem os dados preenchidos.
-            </p>
+            <p className="text-gray-500 text-sm">{t.waitingGuestData}</p>
           ) : (
-            <p className="text-gray-500 text-sm">
-              Assim que o pagamento for confirmado, vai receber o código de acesso por SMS e email.
-            </p>
+            <p className="text-gray-500 text-sm">{t.waitingPayment}</p>
           )}
         </div>
       )}

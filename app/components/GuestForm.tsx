@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { getDictionary, interpolate, type Locale } from "@/lib/i18n";
 
 export interface GuestFormData {
   fullName: string;
@@ -10,14 +11,6 @@ export interface GuestFormData {
   birthDate: string;
   isLeadGuest: boolean;
 }
-
-const DOCUMENT_TYPES = [
-  { value: "cc", label: "Cartão de Cidadão" },
-  { value: "bi", label: "Bilhete de Identidade" },
-  { value: "passaporte", label: "Passaporte" },
-  { value: "titulo_residencia", label: "Título de Residência" },
-  { value: "outro", label: "Outro documento" },
-];
 
 function emptyGuest(isLead = false): GuestFormData {
   return { fullName: "", nationality: "", documentType: "cc", documentNumber: "", birthDate: "", isLeadGuest: isLead };
@@ -52,23 +45,32 @@ export function useGuestForm(guestsCount: number) {
 export default function GuestForm({
   guests,
   onChange,
+  locale = "pt",
 }: {
   guests: GuestFormData[];
   onChange: (index: number, field: keyof GuestFormData, value: string | boolean) => void;
+  locale?: Locale;
 }) {
+  const t = getDictionary(locale).guestForm;
+  const documentTypes = [
+    { value: "cc", label: t.docCC },
+    { value: "bi", label: t.docBI },
+    { value: "passaporte", label: t.docPassport },
+    { value: "titulo_residencia", label: t.docResidence },
+    { value: "outro", label: t.docOther },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-medium">Dados dos hóspedes</h3>
-        <p className="text-sm text-gray-500">
-          Obrigatório por lei (boletim de alojamento / SIBA-AIMA) para todos os hóspedes, incluindo menores.
-        </p>
+        <h3 className="text-lg font-medium">{t.title}</h3>
+        <p className="text-sm text-gray-500">{t.subtitle}</p>
       </div>
 
       {guests.map((guest, i) => (
         <div key={i} className="border rounded-lg p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="font-medium text-sm">Hóspede {i + 1}</p>
+            <p className="font-medium text-sm">{interpolate(t.guestLabel, { number: i + 1 })}</p>
             <label className="flex items-center gap-2 text-xs text-gray-500">
               <input
                 type="radio"
@@ -76,12 +78,12 @@ export default function GuestForm({
                 checked={guest.isLeadGuest}
                 onChange={() => onChange(i, "isLeadGuest", true)}
               />
-              Titular da reserva
+              {t.leadGuest}
             </label>
           </div>
 
           <input
-            placeholder="Nome completo"
+            placeholder={t.fullName}
             className="w-full border rounded px-3 py-2 text-sm"
             value={guest.fullName}
             onChange={(e) => onChange(i, "fullName", e.target.value)}
@@ -89,7 +91,7 @@ export default function GuestForm({
 
           <div className="grid grid-cols-2 gap-3">
             <input
-              placeholder="Nacionalidade"
+              placeholder={t.nationality}
               className="w-full border rounded px-3 py-2 text-sm"
               value={guest.nationality}
               onChange={(e) => onChange(i, "nationality", e.target.value)}
@@ -108,14 +110,14 @@ export default function GuestForm({
               value={guest.documentType}
               onChange={(e) => onChange(i, "documentType", e.target.value)}
             >
-              {DOCUMENT_TYPES.map((d) => (
+              {documentTypes.map((d) => (
                 <option key={d.value} value={d.value}>
                   {d.label}
                 </option>
               ))}
             </select>
             <input
-              placeholder="Número do documento"
+              placeholder={t.documentNumber}
               className="w-full border rounded px-3 py-2 text-sm"
               value={guest.documentNumber}
               onChange={(e) => onChange(i, "documentNumber", e.target.value)}

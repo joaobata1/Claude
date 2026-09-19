@@ -113,7 +113,6 @@ export default function BookingDetail() {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   function load() {
-    setLoadError(null);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
 
@@ -126,6 +125,7 @@ export default function BookingDetail() {
       fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
     ])
       .then(([data, settingsData]) => {
+        setLoadError(null);
         setBooking(data.booking);
         setGuests(data.guests ?? []);
         setLog(data.messageLog ?? []);
