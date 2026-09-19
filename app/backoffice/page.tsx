@@ -118,6 +118,8 @@ export default function Backoffice() {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<Record<string, any> | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
 
@@ -200,6 +202,32 @@ export default function Backoffice() {
       setPhotoError(err.message ?? "Erro ao enviar a foto de capa.");
     }
     setUploadingCover(false);
+  }
+
+  async function handleLogoUpload(file: File) {
+    setPhotoError(null);
+    setUploadingLogo(true);
+    try {
+      const url = await uploadOnePhoto(file);
+      setSettings((prev) => ({ ...prev, site_logo_url: url }));
+      await persistSetting("site_logo_url", url);
+    } catch (err: any) {
+      setPhotoError(err.message ?? "Erro ao enviar o logótipo.");
+    }
+    setUploadingLogo(false);
+  }
+
+  async function handleFaviconUpload(file: File) {
+    setPhotoError(null);
+    setUploadingFavicon(true);
+    try {
+      const url = await uploadOnePhoto(file);
+      setSettings((prev) => ({ ...prev, favicon_url: url }));
+      await persistSetting("favicon_url", url);
+    } catch (err: any) {
+      setPhotoError(err.message ?? "Erro ao enviar o favicon.");
+    }
+    setUploadingFavicon(false);
   }
 
   async function handleGalleryUpload(files: FileList) {
@@ -651,6 +679,70 @@ export default function Backoffice() {
 
       {section === "site" && (
         <section className="space-y-8">
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Nome da casa/alojamento</label>
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder="Aljezur - Monte Clérigo"
+              value={settings.site_name ?? ""}
+              onChange={(e) => setSettings({ ...settings, site_name: e.target.value })}
+            />
+            <p className="text-xs text-gray-400 mt-1">Mostrado no site e no separador do browser.</p>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">Nº de registo de Alojamento Local (AL)</label>
+            <input
+              className="w-full border rounded px-3 py-2"
+              placeholder="Ex: 74669/AL"
+              value={settings.al_registration_number ?? ""}
+              onChange={(e) => setSettings({ ...settings, al_registration_number: e.target.value })}
+            />
+            <p className="text-xs text-gray-400 mt-1">Obrigatório por lei mostrar no site.</p>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium mb-1">Logótipo</h2>
+            <p className="text-sm text-gray-500 mb-3">Mostrado no topo da página inicial.</p>
+            {settings.site_logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={settings.site_logo_url} alt="Logótipo atual" className="h-16 object-contain rounded border mb-3 bg-gray-900 p-2" />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingLogo}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleLogoUpload(file);
+                e.target.value = "";
+              }}
+              className="text-sm"
+            />
+            {uploadingLogo && <p className="text-xs text-gray-400 mt-1">A enviar...</p>}
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium mb-1">Favicon (ícone do separador do browser)</h2>
+            <p className="text-sm text-gray-500 mb-3">Use uma imagem quadrada (ex: 512×512px) para melhor resultado.</p>
+            {settings.favicon_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={settings.favicon_url} alt="Favicon atual" className="w-10 h-10 object-contain rounded border mb-3" />
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingFavicon}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFaviconUpload(file);
+                e.target.value = "";
+              }}
+              className="text-sm"
+            />
+            {uploadingFavicon && <p className="text-xs text-gray-400 mt-1">A enviar...</p>}
+          </div>
+
           <div>
             <h2 className="text-lg font-medium mb-1">Foto de capa</h2>
             <p className="text-sm text-gray-500 mb-3">Mostrada no topo da página inicial do site.</p>

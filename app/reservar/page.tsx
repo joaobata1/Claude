@@ -61,8 +61,16 @@ function Reservar() {
   const [releaseInfo, setReleaseInfo] = useState<any>(stored.releaseInfo ?? null);
   const [bankDetails, setBankDetails] = useState<StoredState["bankDetails"]>(stored.bankDetails ?? null);
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [siteName, setSiteName] = useState("Aljezur - Monte Clérigo");
 
   const { guests, resize, update } = useGuestForm(guestsCount);
+
+  useEffect(() => {
+    fetch("/api/site-info")
+      .then((r) => r.json())
+      .then((data) => setSiteName(data.name))
+      .catch(() => {});
+  }, []);
 
   // Guarda o progresso: sobrevive a recarregamentos da página (ex: ao voltar da app do MB WAY no telemóvel).
   useEffect(() => {
@@ -184,7 +192,7 @@ function Reservar() {
 
   return (
     <main className="max-w-lg mx-auto p-8">
-      <h1 className="text-2xl font-semibold mb-6">Reservar — Aljezur Monte Clérigo</h1>
+      <h1 className="text-2xl font-semibold mb-6">Reservar — {siteName}</h1>
 
       {step === "datas" && (
         <div className="space-y-4">

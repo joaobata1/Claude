@@ -11,12 +11,16 @@ const FALLBACK_COVER = "https://a0.muscache.com/im/pictures/67298b26-029f-428d-8
 const DEFAULT_DESCRIPTION =
   "A ligação perfeita entre a natureza, a praia e o campo. Mobília clara que dá ao apartamento uma aparência " +
   "de verão — o espaço ideal para relaxar no Parque Nacional da Costa Vicentina, perto de Monte Clérigo.";
+const DEFAULT_NAME = "Aljezur · Monte Clérigo";
+const DEFAULT_AL_NUMBER = "74669/AL";
 
 export default async function Home() {
   const settings = await getAllSettings();
   const coverPhoto = settings.cover_photo_url || FALLBACK_COVER;
   const description = settings.site_description || DEFAULT_DESCRIPTION;
   const about = settings.site_about || "";
+  const siteName = settings.site_name || DEFAULT_NAME;
+  const alNumber = settings.al_registration_number || DEFAULT_AL_NUMBER;
   const price = parseFloat(settings.price_per_night ?? "0") || 0;
   const cleaningFee = parseFloat(settings.cleaning_fee ?? "0") || 0;
   const hasGallery = (() => {
@@ -37,9 +41,11 @@ export default async function Home() {
           className="absolute inset-0 w-full h-full object-cover opacity-80"
         />
         <div className="relative z-10 p-8 text-white">
-          <p className="uppercase tracking-wide text-sm text-amber-300 mb-2">
-            Aljezur · Monte Clérigo
-          </p>
+          {settings.site_logo_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={settings.site_logo_url} alt={siteName} className="h-12 mb-3 object-contain" />
+          )}
+          <p className="uppercase tracking-wide text-sm text-amber-300 mb-2">{siteName}</p>
           <h1 className="text-4xl md:text-5xl font-semibold mb-2">Casa T2 junto à Costa Vicentina</h1>
           <p className="text-white/80">6 hóspedes · 2 quartos · 5 camas · 2 casas de banho · ★ 4,72</p>
         </div>
@@ -78,9 +84,11 @@ export default async function Home() {
             </div>
           )}
 
-          <div className="text-sm text-gray-400 pt-4 border-t">
-            Registo AL: 74669/AL
-          </div>
+          {alNumber && (
+            <div className="text-sm text-gray-400 pt-4 border-t">
+              Registo AL: {alNumber}
+            </div>
+          )}
         </div>
 
         <BookingSearchWidget price={price} cleaningFee={cleaningFee} />

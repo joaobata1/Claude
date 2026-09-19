@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
 
+class NotFoundError extends Error {}
+
 interface Booking {
   id: string;
   booking_number: number;
@@ -108,14 +110,20 @@ export default function BookingDetail() {
   const [actionMsg, setActionMsg] = useState<{ text: string; isError: boolean } | null>(null);
   const [freeSubject, setFreeSubject] = useState("");
   const [freeBody, setFreeBody] = useState("");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   function load() {
+    setLoadError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
     Promise.all([
-      fetch(`/api/backoffice/bookings/${id}`).then((r) => {
-        if (!r.ok) throw new Error("not_found");
+      fetch(`/api/backoffice/bookings/${id}`, { signal: controller.signal }).then((r) => {
+        if (r.status === 404) throw new NotFoundError();
+        if (!r.ok) throw new Error("request_failed");
         return r.json();
       }),
-      fetch("/api/backoffice/settings").then((r) => r.json()),
+      fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
     ])
       .then(([data, settingsData]) => {
         setBooking(data.booking);
@@ -129,10 +137,19 @@ export default function BookingDetail() {
         }
         setLoading(false);
       })
-      .catch(() => {
-        setNotFound(true);
+      .catch((err) => {
+        if (err instanceof NotFoundError) {
+          setNotFound(true);
+        } else {
+          setLoadError(
+            err?.name === "AbortError"
+              ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+              : "Erro de ligação ao carregar a reserva."
+          );
+        }
         setLoading(false);
-      });
+      })
+      .finally(() => clearTimeout(timeout));
   }
 
   useEffect(() => {
@@ -253,6 +270,21 @@ export default function BookingDetail() {
     return (
       <main className="max-w-4xl mx-auto p-8">
         <LoadingSpinner />
+      </main>
+    );
+  if (loadError)
+    return (
+      <main className="max-w-4xl mx-auto p-8 text-center py-16">
+        <p className="text-red-600 text-sm mb-3">{loadError}</p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            load();
+          }}
+          className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+        >
+          Tentar outra vez
+        </button>
       </main>
     );
   if (notFound || !booking)

@@ -168,6 +168,10 @@ export const SETTINGS_KEYS = [
   "ai_vision_api_key",
   "ai_vision_model", // ex: claude-sonnet-5 — consultar docs.claude.com para o modelo mais recente
   // Conteúdo do site público
+  "site_name", // nome da casa/alojamento, mostrado no site e no separador do browser
+  "site_logo_url", // logótipo (Supabase Storage)
+  "favicon_url", // ícone do separador do browser (Supabase Storage)
+  "al_registration_number", // nº de registo de Alojamento Local, obrigatório por lei mostrar no site
   "cover_photo_url", // foto de capa (Supabase Storage)
   "gallery_photo_urls", // JSON: string[] — fotos da galeria (Supabase Storage)
   "site_description", // descrição da casa, mostrada na página inicial

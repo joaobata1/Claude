@@ -103,6 +103,8 @@ export default function Calendario() {
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [defaultPrice, setDefaultPrice] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [savingDate, setSavingDate] = useState<string | null>(null);
 
@@ -128,25 +130,54 @@ export default function Calendario() {
   useEffect(() => {
     const start = grid[0];
     const end = grid[grid.length - 1];
+    setLoadError(null);
+
+    // Sem isto, uma resposta lenta ou falhada (ex: Supabase a acordar de uma pausa)
+    // deixava o "A carregar..." preso para sempre, sem nunca chamar setLoading(false).
+    // "cancelled" evita que o cleanup (StrictMode em dev corre o efeito 2x) trate o
+    // seu próprio abort() como um erro real e sobreponha o resultado da execução seguinte.
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
     Promise.all([
-      fetch("/api/backoffice/bookings").then((r) => r.json()),
-      fetch("/api/backoffice/blocked-dates").then((r) => r.json()),
-      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`).then((r) => r.json()),
-      fetch("/api/backoffice/settings").then((r) => r.json()),
-    ]).then(([bookingsData, blockedData, pricesData, settingsData]) => {
-      setBookings(bookingsData.bookings ?? []);
-      const blockedMap = new Map<string, string>();
-      for (const b of blockedData.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);
-      setBlockedBySource(blockedMap);
-      const map: Record<string, number> = {};
-      for (const p of pricesData.prices ?? []) {
-        if (p.channel === "site") map[p.date] = p.price;
-      }
-      setPrices(map);
-      setDefaultPrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
-      setLoading(false);
-    });
-  }, [grid]);
+      fetch("/api/backoffice/bookings", { signal: controller.signal }).then((r) => r.json()),
+      fetch("/api/backoffice/blocked-dates", { signal: controller.signal }).then((r) => r.json()),
+      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`, { signal: controller.signal }).then((r) =>
+        r.json()
+      ),
+      fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
+    ])
+      .then(([bookingsData, blockedData, pricesData, settingsData]) => {
+        if (cancelled) return;
+        setBookings(bookingsData.bookings ?? []);
+        const blockedMap = new Map<string, string>();
+        for (const b of blockedData.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);
+        setBlockedBySource(blockedMap);
+        const map: Record<string, number> = {};
+        for (const p of pricesData.prices ?? []) {
+          if (p.channel === "site") map[p.date] = p.price;
+        }
+        setPrices(map);
+        setDefaultPrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err?.name === "AbortError"
+            ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+            : "Erro de ligação ao carregar o calendário."
+        );
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [grid, reloadToken]);
 
   const bookingByDate = useMemo(() => {
     const map = new Map<string, BookingLite>();
@@ -348,6 +379,19 @@ export default function Calendario() {
 
       {loading ? (
         <LoadingSpinner />
+      ) : loadError ? (
+        <div className="text-center py-16">
+          <p className="text-red-600 text-sm mb-3">{loadError}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setReloadToken((t) => t + 1);
+            }}
+            className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            Tentar outra vez
+          </button>
+        </div>
       ) : (
         <div className="border rounded-lg overflow-hidden">
           <div className="grid grid-cols-7 bg-gray-50 text-gray-500 text-xs uppercase">

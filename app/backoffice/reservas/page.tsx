@@ -62,15 +62,38 @@ export default function Reservas() {
   const router = useRouter();
   const [bookings, setBookings] = useState<BookingOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
-    fetch("/api/backoffice/bookings")
+    setLoadError(null);
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
+    fetch("/api/backoffice/bookings", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         setBookings(data.bookings ?? []);
         setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err?.name === "AbortError"
+            ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+            : "Erro de ligação ao carregar as reservas."
+        );
+        setLoading(false);
       });
-  }, []);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [reloadToken]);
 
   return (
     <main className="max-w-7xl mx-auto p-8">
@@ -94,6 +117,19 @@ export default function Reservas() {
 
       {loading ? (
         <LoadingSpinner />
+      ) : loadError ? (
+        <div className="text-center py-16">
+          <p className="text-red-600 text-sm mb-3">{loadError}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setReloadToken((t) => t + 1);
+            }}
+            className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            Tentar outra vez
+          </button>
+        </div>
       ) : bookings.length === 0 ? (
         <p className="text-gray-500 text-sm">Ainda não há reservas registadas.</p>
       ) : (

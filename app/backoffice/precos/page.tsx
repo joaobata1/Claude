@@ -34,6 +34,8 @@ export default function Precos() {
   const [sitePrice, setSitePrice] = useState<number>(0);
   const [prices, setPrices] = useState<Record<string, number>>({}); // key: `${channel}|${date}`
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [savingCell, setSavingCell] = useState<string | null>(null);
 
   const dates = useMemo(() => {
@@ -44,27 +46,50 @@ export default function Precos() {
   useEffect(() => {
     const start = dates[0];
     const end = dates[dates.length - 1];
+    setLoadError(null);
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
 
     Promise.all([
-      fetch("/api/backoffice/settings").then((r) => r.json()),
-      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`).then((r) => r.json()),
-    ]).then(([settingsData, pricesData]) => {
-      try {
-        const parsed = settingsData.ical_sources ? JSON.parse(settingsData.ical_sources) : [];
-        setIcalSources(Array.isArray(parsed) ? parsed : []);
-      } catch {
-        setIcalSources([]);
-      }
-      setSitePrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
+      fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
+      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`, { signal: controller.signal }).then((r) =>
+        r.json()
+      ),
+    ])
+      .then(([settingsData, pricesData]) => {
+        if (cancelled) return;
+        try {
+          const parsed = settingsData.ical_sources ? JSON.parse(settingsData.ical_sources) : [];
+          setIcalSources(Array.isArray(parsed) ? parsed : []);
+        } catch {
+          setIcalSources([]);
+        }
+        setSitePrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
 
-      const map: Record<string, number> = {};
-      for (const p of pricesData.prices ?? []) {
-        map[`${p.channel}|${p.date}`] = p.price;
-      }
-      setPrices(map);
-      setLoading(false);
-    });
-  }, [dates]);
+        const map: Record<string, number> = {};
+        for (const p of pricesData.prices ?? []) {
+          map[`${p.channel}|${p.date}`] = p.price;
+        }
+        setPrices(map);
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err?.name === "AbortError"
+            ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+            : "Erro de ligação ao carregar os preços."
+        );
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [dates, reloadToken]);
 
   function getPrice(channel: string, date: string, fallback: number): number {
     const key = `${channel}|${date}`;
@@ -101,6 +126,19 @@ export default function Precos() {
 
       {loading ? (
         <LoadingSpinner />
+      ) : loadError ? (
+        <div className="text-center py-16">
+          <p className="text-red-600 text-sm mb-3">{loadError}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setReloadToken((t) => t + 1);
+            }}
+            className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            Tentar outra vez
+          </button>
+        </div>
       ) : (
         <div className="overflow-x-auto border rounded-lg">
           <table className="text-sm border-collapse">

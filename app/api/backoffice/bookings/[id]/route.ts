@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { getGuestsForBooking } from "@/lib/guests";
 
+export const maxDuration = 30;
+
 const EDITABLE_FIELDS = [
   "guest_name",
   "guest_email",

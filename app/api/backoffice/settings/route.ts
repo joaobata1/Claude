@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllSettings, setSetting, SETTINGS_KEYS } from "@/lib/db";
 
+export const maxDuration = 30;
+
 export async function GET() {
   try {
     const all = await getAllSettings();

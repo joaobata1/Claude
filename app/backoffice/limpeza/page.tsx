@@ -16,29 +16,53 @@ export default function Limpeza() {
   const [rows, setRows] = useState<CleaningRow[]>([]);
   const [cleaningPhone, setCleaningPhone] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    setLoadError(null);
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
     Promise.all([
-      fetch("/api/backoffice/bookings").then((r) => r.json()),
-      fetch("/api/backoffice/settings").then((r) => r.json()),
-    ]).then(([bookingsData, settingsData]) => {
-      const today = new Date().toISOString().slice(0, 10);
-      const list = (bookingsData.bookings ?? [])
-        .filter((b: any) => b.checkout >= today) // ainda relevante para limpeza (a decorrer ou futura)
-        .map((b: any) => ({
-          checkin: b.checkin,
-          checkout: b.checkout,
-          guestName: b.guestName,
-          guestsCount: b.guestsCount,
-          sameDayCleaning: b.requiresSameDayCleaning,
-        }))
-        .sort((a: CleaningRow, b: CleaningRow) => a.checkin.localeCompare(b.checkin));
-      setRows(list);
-      setCleaningPhone(settingsData.cleaning_contact_phone ?? "");
-      setLoading(false);
-    });
-  }, []);
+      fetch("/api/backoffice/bookings", { signal: controller.signal }).then((r) => r.json()),
+      fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
+    ])
+      .then(([bookingsData, settingsData]) => {
+        if (cancelled) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const list = (bookingsData.bookings ?? [])
+          .filter((b: any) => b.checkout >= today) // ainda relevante para limpeza (a decorrer ou futura)
+          .map((b: any) => ({
+            checkin: b.checkin,
+            checkout: b.checkout,
+            guestName: b.guestName,
+            guestsCount: b.guestsCount,
+            sameDayCleaning: b.requiresSameDayCleaning,
+          }))
+          .sort((a: CleaningRow, b: CleaningRow) => a.checkin.localeCompare(b.checkin));
+        setRows(list);
+        setCleaningPhone(settingsData.cleaning_contact_phone ?? "");
+        setLoading(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setLoadError(
+          err?.name === "AbortError"
+            ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+            : "Erro de ligação ao carregar a limpeza."
+        );
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [reloadToken]);
 
   function formatDate(iso: string) {
     const [y, m, d] = iso.split("-");
@@ -87,6 +111,19 @@ export default function Limpeza() {
 
       {loading ? (
         <LoadingSpinner />
+      ) : loadError ? (
+        <div className="text-center py-16">
+          <p className="text-red-600 text-sm mb-3">{loadError}</p>
+          <button
+            onClick={() => {
+              setLoading(true);
+              setReloadToken((t) => t + 1);
+            }}
+            className="border rounded px-4 py-2 text-sm hover:bg-gray-50"
+          >
+            Tentar outra vez
+          </button>
+        </div>
       ) : rows.length === 0 ? (
         <p className="text-gray-500 text-sm">Sem reservas futuras.</p>
       ) : (
