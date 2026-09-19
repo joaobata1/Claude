@@ -6,6 +6,7 @@ import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
 import LanguageSwitcher from "@/app/components/LanguageSwitcher";
 import { useLocale } from "@/app/components/useLocale";
 import { getDictionary, interpolate } from "@/lib/i18n";
+import { todayISO, addDaysISO } from "@/lib/dates";
 
 const STORAGE_KEY = "aljezur-reserva-em-curso";
 
@@ -36,29 +37,24 @@ function loadStoredState(): Partial<StoredState> {
 /** Um dia [checkin, checkout) faz interseção com alguma data bloqueada? */
 function rangeOverlapsBlocked(checkin: string, checkout: string, blocked: Set<string>): boolean {
   if (!checkin || !checkout) return false;
-  const d = new Date(checkin);
-  const end = new Date(checkout);
-  while (d < end) {
-    if (blocked.has(d.toISOString().slice(0, 10))) return true;
-    d.setDate(d.getDate() + 1);
+  let d = checkin;
+  while (d < checkout) {
+    if (blocked.has(d)) return true;
+    d = addDaysISO(d, 1);
   }
   return false;
 }
 
 function defaultCheckin(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayISO();
 }
 
 function defaultCheckout(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 7);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(todayISO(), 7);
 }
 
 function nextDay(iso: string): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return addDaysISO(iso, 1);
 }
 
 function Reservar() {

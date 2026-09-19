@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getDictionary, interpolate, type Locale } from "@/lib/i18n";
+import { todayISO, addDaysISO } from "@/lib/dates";
 
 export default function BookingSearchWidget({
   price,
@@ -15,20 +16,14 @@ export default function BookingSearchWidget({
 }) {
   const router = useRouter();
   const dict = getDictionary(locale).widget;
-  const today = new Date().toISOString().slice(0, 10);
-  const inAWeek = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 7);
-    return d.toISOString().slice(0, 10);
-  })();
+  const today = todayISO();
+  const inAWeek = addDaysISO(today, 7);
   const [checkin, setCheckin] = useState(today);
   const [checkout, setCheckout] = useState(inAWeek);
   const [guestsCount, setGuestsCount] = useState(2);
 
   function nextDay(iso: string): string {
-    const d = new Date(iso + "T00:00:00");
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
+    return addDaysISO(iso, 1);
   }
 
   /** A saída tem de ser sempre depois da entrada — senão seguiria um intervalo impossível para /reservar. */

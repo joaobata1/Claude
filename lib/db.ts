@@ -177,6 +177,7 @@ export const SETTINGS_KEYS = [
   "nuki_checkout_hour", // hora de fim da validade do código (0-23), ex: 12
   "ifthenpay_mbway_key",
   "ifthenpay_gateway_key",
+  "ifthenpay_anti_phishing_key", // chave que a ifthenpay envia no callback — sem ela o callback é recusado
   "bank_iban", // IBAN mostrado nas mensagens quando o hóspede escolhe pagar por transferência
   "bank_account_holder", // nome do titular da conta, mostrado junto ao IBAN
   "price_per_night",

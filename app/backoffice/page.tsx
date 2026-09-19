@@ -11,6 +11,11 @@ const FIELD_LABELS: Record<string, { label: string; type?: string; hint?: string
   nuki_checkout_hour: { label: "Hora de fim do código (check-out)", type: "number", hint: "0-23, ex: 12" },
   ifthenpay_mbway_key: { label: "ifthenpay - Chave MB WAY", type: "password" },
   ifthenpay_gateway_key: { label: "ifthenpay - Chave Gateway (Cartão)", type: "password" },
+  ifthenpay_anti_phishing_key: {
+    label: "ifthenpay - Chave anti-phishing (callback)",
+    type: "password",
+    hint: "Defina a mesma chave no backoffice da ifthenpay e no URL de callback: /api/pay/callback?chave=SUA_CHAVE",
+  },
   bank_iban: { label: "IBAN para transferência bancária", hint: "PT50 0000 0000 00000000000 00" },
   bank_account_holder: { label: "Nome do titular da conta" },
   price_per_night: { label: "Preço por noite (€)" },
@@ -103,7 +108,7 @@ const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   {
     id: "pagamentos",
     label: "Pagamentos",
-    fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key", "bank_iban", "bank_account_holder"],
+    fields: ["ifthenpay_mbway_key", "ifthenpay_gateway_key", "ifthenpay_anti_phishing_key", "bank_iban", "bank_account_holder"],
   },
   {
     id: "notificacoes",

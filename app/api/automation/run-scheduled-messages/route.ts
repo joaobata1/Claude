@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { sql, ensureSchema, getSetting } from "@/lib/db";
+import { NextRequest } from "next/server";
+import { isMachineAuthorized } from "@/lib/machine-auth";
 import { sendGenericEmail } from "@/lib/notifications";
+import { todayInLisbon } from "@/lib/dates";
 import { getTemplate, renderTemplate, buildTemplateVars, resolveGuestLanguage, MessageType } from "@/lib/message-templates";
 
 // Percorre todas as reservas + envia emails — pode ultrapassar o limite de 10s por
@@ -40,14 +43,18 @@ async function getRules(): Promise<AutomationRule[]> {
  * isso reservas com canal WhatsApp ficam de fora e aparecem como lembrete na página da reserva.
  * Pensado para ser chamado por um cron externo (ex: cron-job.org), uma vez por dia.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  if (!(await isMachineAuthorized(req))) {
+    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+  }
+
   await ensureSchema();
   const rules = await getRules();
   if (rules.length === 0) {
     return NextResponse.json({ sent: 0, skipped: 0, note: "Sem regras de automação configuradas." });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInLisbon();
   const bookings = await sql`SELECT * FROM bookings WHERE message_channel = 'email'`;
 
   let sent = 0;

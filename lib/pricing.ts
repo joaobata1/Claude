@@ -1,5 +1,6 @@
 import { sql, ensureSchema, getSetting } from "./db";
 import { getRatePlanForCheckin, RatePlan } from "./rate-plans";
+import { addDaysISO } from "./dates";
 
 export interface FeeConfig {
   id: string;
@@ -44,11 +45,10 @@ function round2(n: number): number {
 
 function eachDate(checkin: string, checkout: string): string[] {
   const dates: string[] = [];
-  const d = new Date(checkin);
-  const end = new Date(checkout);
-  while (d < end) {
-    dates.push(d.toISOString().slice(0, 10));
-    d.setDate(d.getDate() + 1);
+  let d = checkin;
+  while (d < checkout) {
+    dates.push(d);
+    d = addDaysISO(d, 1);
   }
   return dates;
 }

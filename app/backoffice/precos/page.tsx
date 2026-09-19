@@ -4,18 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { IcalSource } from "@/lib/ical-sync";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { todayISO, addDaysISO } from "@/lib/dates";
 
 const DAYS_AHEAD = 21;
 
-function todayISO() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
+const addDays = addDaysISO;
 
 function formatDate(iso: string) {
   const [, m, d] = iso.split("-");

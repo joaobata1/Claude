@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { todayISO, addDaysISO } from "@/lib/dates";
 
 class NotFoundError extends Error {}
 
@@ -87,11 +88,7 @@ const MESSAGE_TYPE_LABEL: Record<string, string> = {
   livre: "Mensagem livre",
 };
 
-function addDaysIso(iso: string, days: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
+const addDaysIso = addDaysISO;
 
 export default function BookingDetail() {
   const params = useParams();
@@ -159,7 +156,7 @@ export default function BookingDetail() {
 
   const sentTypes = useMemo(() => new Set(log.map((l) => l.type)), [log]);
 
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const today = useMemo(() => todayISO(), []);
   const pendingWhatsappReminders = useMemo(() => {
     if (!booking || booking.message_channel !== "whatsapp") return [];
     return rules.filter((r) => {

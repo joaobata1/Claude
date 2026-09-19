@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAllHolidaysByDate, type Holiday, type HolidayCountry } from "../../../lib/holidays";
 import { newId } from "@/lib/id";
+import { toISODate, addDaysISO } from "@/lib/dates";
 import LoadingSpinner from "../../components/LoadingSpinner";
 
 const HOLIDAY_DOT_COLOR: Record<HolidayCountry, string> = {
@@ -80,15 +81,8 @@ const MONTH_LABELS = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
-function toISO(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(iso: string, n: number): string {
-  const d = new Date(iso + "T00:00:00");
-  d.setDate(d.getDate() + n);
-  return toISO(d);
-}
+const toISO = toISODate;
+const addDays = addDaysISO;
 
 /** Grelha do mês: começa na segunda-feira da semana que contém o dia 1, sempre 6 semanas (42 dias) */
 function buildMonthGrid(year: number, month: number): string[] {

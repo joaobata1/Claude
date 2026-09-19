@@ -87,7 +87,9 @@ export async function generateOwnIcalFeed(): Promise<string> {
       `UID:${b.id}@aljezur-booking`,
       `DTSTART;VALUE=DATE:${b.checkin.replace(/-/g, "")}`,
       `DTEND;VALUE=DATE:${b.checkout.replace(/-/g, "")}`,
-      `SUMMARY:Reservado (site próprio) - ${b.guest_name}`,
+      // Sem o nome do hóspede: este feed é público (o Airbnb/Booking têm de o poder
+      // ler sem sessão) e as plataformas só precisam de saber que o dia está ocupado.
+      "SUMMARY:Reservado (site próprio)",
       "END:VEVENT"
     );
   }

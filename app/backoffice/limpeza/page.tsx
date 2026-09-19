@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import LoadingSpinner from "@/app/components/LoadingSpinner";
+import { todayISO } from "@/lib/dates";
 
 interface CleaningRow {
   checkin: string;
@@ -32,7 +33,7 @@ export default function Limpeza() {
       .then(([bookingsData, settingsData]) => {
         if (cancelled) return;
         setLoadError(null);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayISO();
         const list = (bookingsData.bookings ?? [])
           .filter((b: any) => b.checkout >= today) // ainda relevante para limpeza (a decorrer ou futura)
           .map((b: any) => ({
@@ -70,7 +71,7 @@ export default function Limpeza() {
   }
 
   function buildMessageText(): string {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayISO();
     const lines = [`Reservas — Aljezur Monte Clérigo (a partir de ${formatDate(today)})`, ""];
     for (const r of rows) {
       const cleaningNote = r.sameDayCleaning ? " ⚠️ LIMPEZA NO PRÓPRIO DIA (saída e entrada)" : "";
