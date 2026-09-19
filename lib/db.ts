@@ -17,10 +17,16 @@ export const sql = postgres(connectionString, { ssl: "prefer", prepare: false, c
 
 let schemaReady: Promise<void> | null = null;
 
+/**
+ * Subir este número sempre que `initSchema()` mudar (nova tabela/coluna) — é isso que
+ * faz a migração correr outra vez. Sem isto, a alteração nunca chegaria à base de dados.
+ */
+const SCHEMA_VERSION = "3";
+
 /** Garante que as tabelas e colunas existem. Idempotente e memorizado — seguro chamar em cada pedido. */
 export function ensureSchema(): Promise<void> {
   if (!schemaReady) {
-    schemaReady = initSchema().catch((err) => {
+    schemaReady = migrateIfNeeded().catch((err) => {
       // Falha transitória (ex: BD momentaneamente inacessível no arranque) não deve
       // bloquear todos os pedidos seguintes — permite nova tentativa no próximo.
       schemaReady = null;
@@ -28,6 +34,28 @@ export function ensureSchema(): Promise<void> {
     });
   }
   return schemaReady;
+}
+
+/**
+ * Cada instância nova na Vercel (arranque a frio) chamava `initSchema()`, ou seja 17
+ * instruções em série — 8 delas `ALTER TABLE`, que pegam num lock exclusivo da tabela.
+ * Com vários pedidos em paralelo (o calendário faz-nos ao mesmo tempo) ficavam todos à
+ * espera do mesmo lock, o que dava pedidos pendurados e o ecrã preso "A carregar...".
+ * Agora o caminho normal é uma única consulta barata à versão do schema.
+ */
+async function migrateIfNeeded(): Promise<void> {
+  try {
+    const rows = await sql<{ value: string }[]>`SELECT value FROM settings WHERE key = 'schema_version'`;
+    if (rows[0]?.value === SCHEMA_VERSION) return;
+  } catch {
+    // Tabela `settings` ainda não existe (base de dados vazia) — segue para a migração.
+  }
+
+  await initSchema();
+  await sql`
+    INSERT INTO settings (key, value) VALUES ('schema_version', ${SCHEMA_VERSION})
+    ON CONFLICT (key) DO UPDATE SET value = excluded.value
+  `;
 }
 
 async function initSchema() {

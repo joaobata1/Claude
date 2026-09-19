@@ -149,56 +149,57 @@ export default function Calendario() {
     const start = grid[0];
     const end = grid[grid.length - 1];
 
-    // Sem isto, uma resposta lenta ou falhada (ex: Supabase a acordar de uma pausa)
-    // deixava o "A carregar..." preso para sempre, sem nunca chamar setLoading(false).
+    // Um único pedido (ver /api/backoffice/calendar): antes eram 5 em paralelo e bastava
+    // um deles pendurar para o calendário ficar preso em "A carregar...".
     // "cancelled" evita que o cleanup (StrictMode em dev corre o efeito 2x) trate o
     // seu próprio abort() como um erro real e sobreponha o resultado da execução seguinte.
     let cancelled = false;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
-    Promise.all([
-      fetch("/api/backoffice/bookings", { signal: controller.signal }).then((r) => r.json()),
-      fetch("/api/backoffice/blocked-dates", { signal: controller.signal }).then((r) => r.json()),
-      fetch(`/api/backoffice/daily-prices?start=${start}&end=${end}`, { signal: controller.signal }).then((r) =>
-        r.json()
-      ),
-      fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
-      fetch(`/api/backoffice/date-rate-plans?start=${start}&end=${end}`, { signal: controller.signal }).then((r) =>
-        r.json()
-      ),
-    ])
-      .then(([bookingsData, blockedData, pricesData, settingsData, ratePlansData]) => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/backoffice/calendar?start=${start}&end=${end}`, {
+          signal: controller.signal,
+        });
+        if (res.status === 401 || res.redirected) {
+          throw new Error("sessao-expirada");
+        }
+        const data = await res.json();
         if (cancelled) return;
+        if (!res.ok) {
+          setLoadError(data.error ?? "Erro ao carregar o calendário.");
+          return;
+        }
+
         setLoadError(null);
-        setBookings(bookingsData.bookings ?? []);
+        setBookings(data.bookings ?? []);
         const blockedMap = new Map<string, string>();
-        for (const b of blockedData.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);
+        for (const b of data.blocked ?? []) blockedMap.set(b.date, b.sourceLabel);
         setBlockedBySource(blockedMap);
-        const map: Record<string, number> = {};
-        for (const p of pricesData.prices ?? []) {
-          if (p.channel === "site") map[p.date] = p.price;
-        }
-        setPrices(map);
-        setDefaultPrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
-        try {
-          const parsed = settingsData.rate_plans ? JSON.parse(settingsData.rate_plans) : null;
-          setRatePlans(Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_RATE_PLAN]);
-        } catch {
-          setRatePlans([DEFAULT_RATE_PLAN]);
-        }
-        setRatePlanByDate(ratePlansData.ratePlansByDate ?? {});
-        setLoading(false);
-      })
-      .catch((err) => {
+        setPrices(data.prices ?? {});
+        setDefaultPrice(data.defaultPrice ?? 0);
+        setRatePlans(
+          Array.isArray(data.ratePlans) && data.ratePlans.length > 0 ? data.ratePlans : [DEFAULT_RATE_PLAN]
+        );
+        setRatePlanByDate(data.ratePlansByDate ?? {});
+      } catch (err) {
         if (cancelled) return;
+        const name = (err as Error)?.name;
+        const message = (err as Error)?.message;
         setLoadError(
-          err?.name === "AbortError"
+          name === "AbortError"
             ? "Demorou demasiado tempo a responder. Pode ser o Supabase a acordar de uma pausa — tente outra vez."
+            : message === "sessao-expirada"
+            ? "A sessão expirou. Volte a entrar no backoffice."
             : "Erro de ligação ao carregar o calendário."
         );
-        setLoading(false);
-      });
+      } finally {
+        // Sai sempre do estado "A carregar", aconteça o que acontecer — é isto que torna
+        // impossível o ecrã ficar preso no spinner.
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
     return () => {
       cancelled = true;
