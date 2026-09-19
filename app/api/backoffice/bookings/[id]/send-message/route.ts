@@ -10,6 +10,8 @@ import {
   MessageType,
 } from "@/lib/message-templates";
 
+export const maxDuration = 30;
+
 const VALID_TYPES: (MessageType | "livre")[] = [
   "confirmacao",
   "chaves",

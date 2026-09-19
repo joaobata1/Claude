@@ -3,6 +3,8 @@ import { sql, ensureSchema } from "@/lib/db";
 import { validateGuestsForSave, saveGuestsForBooking, getGuestsForBooking, GuestInput } from "@/lib/guests";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
+export const maxDuration = 30;
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ bookingId: string }> }) {
   const { bookingId } = await params;
   const guests = await getGuestsForBooking(bookingId);

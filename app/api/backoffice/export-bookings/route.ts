@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getBookingsOverview } from "@/lib/bookings-overview";
 
+export const maxDuration = 30;
+
 const SOURCE_LABEL: Record<string, string> = {
   site: "Site próprio",
   airbnb: "Airbnb",

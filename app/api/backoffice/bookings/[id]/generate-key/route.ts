@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { createNukiAccessCode } from "@/lib/nuki";
 
+export const maxDuration = 30;
+
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   await ensureSchema();

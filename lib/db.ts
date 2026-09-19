@@ -10,7 +10,10 @@ if (!connectionString) {
 // ssl "prefer": liga com TLS quando o servidor suporta (Supabase, produção em geral)
 // sem exigir configuração extra para bases de dados locais de teste sem TLS.
 // prepare:false: necessário para funcionar através do connection pooler do Supabase (pgbouncer).
-export const sql = postgres(connectionString, { ssl: "prefer", prepare: false });
+// connect_timeout: sem isto, se a ligação ficar presa (ex: projeto Supabase inacessível),
+// o pedido bloqueia indefinidamente em vez de falhar rapidamente com um erro claro — foi o
+// que causou o site inteiro a ficar em branco/a carregar para sempre nalguns relatos.
+export const sql = postgres(connectionString, { ssl: "prefer", prepare: false, connect_timeout: 10 });
 
 let schemaReady: Promise<void> | null = null;
 

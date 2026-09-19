@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateOwnIcalFeed } from "@/lib/ical-sync";
 
+export const maxDuration = 30;
+
 export async function GET() {
   const feed = await generateOwnIcalFeed();
   return new NextResponse(feed, {

@@ -6,6 +6,8 @@ import { createMbwayRequest, createCardPaymentLink } from "@/lib/ifthenpay";
 import { sendBookingConfirmationEmail } from "@/lib/booking-messages";
 import { calculateBookingPrice } from "@/lib/pricing";
 
+export const maxDuration = 30;
+
 class DatesUnavailableError extends Error {}
 
 export async function POST(req: NextRequest) {

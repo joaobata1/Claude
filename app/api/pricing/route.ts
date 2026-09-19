@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { calculateBookingPrice } from "@/lib/pricing";
 
+export const maxDuration = 30;
+
 /** Endpoint público — calcula o preço total (noites com preço do calendário + taxas) para a página de reserva. */
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);

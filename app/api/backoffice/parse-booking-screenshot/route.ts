@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { parseBookingScreenshot } from "@/lib/ai-vision";
 
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const { imageBase64, mediaType } = await req.json();
   if (!imageBase64 || !mediaType) {

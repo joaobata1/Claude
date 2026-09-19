@@ -5,6 +5,7 @@ import { getDictionary, interpolate } from "@/lib/i18n";
 import LanguageSwitcher from "@/app/components/LanguageSwitcher";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export default async function Fotos() {
   const [settings, locale] = await Promise.all([getAllSettings(), getServerLocale()]);

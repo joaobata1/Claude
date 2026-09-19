@@ -9,6 +9,8 @@ import {
   MessageLanguage,
 } from "@/lib/message-templates";
 
+export const maxDuration = 30;
+
 export async function GET() {
   const templates: MessageTemplate[] = [];
   for (const { id: type } of MESSAGE_TYPES) {

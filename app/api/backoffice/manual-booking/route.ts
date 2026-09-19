@@ -4,6 +4,8 @@ import { sql, ensureSchema } from "@/lib/db";
 import { validateGuestsForSave, saveGuestsForBooking, GuestInput } from "@/lib/guests";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
+export const maxDuration = 30;
+
 /**
  * Usado no backoffice quando chega uma reserva do Airbnb/Booking/VRBO.
  * Os dados dos hóspedes podem ficar incompletos nesta fase (o interruptor

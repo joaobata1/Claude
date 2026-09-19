@@ -9,6 +9,10 @@ import LanguageSwitcher from "@/app/components/LanguageSwitcher";
 // sem isto, o Next.js pré-renderizava a página no build e ficava presa aos valores
 // dessa altura, ignorando alterações feitas depois no backoffice.
 export const dynamic = "force-dynamic";
+// Por omissão a Vercel corta a função ao fim de 10s (plano Hobby) — a página inicial
+// lê a base de dados a cada pedido, e se o Supabase estiver a "acordar" de uma pausa
+// isso pode não chegar, deixando o site inteiro em branco para qualquer visitante.
+export const maxDuration = 30;
 
 const FALLBACK_COVER = "https://a0.muscache.com/im/pictures/67298b26-029f-428d-8dfb-2044600ff3c5.jpg?im_w=1200";
 const DEFAULT_DESCRIPTION =

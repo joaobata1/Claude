@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { sql, ensureSchema } from "@/lib/db";
 import { releaseAccessIfReady } from "@/lib/access-release";
 
+export const maxDuration = 30;
+
 /**
  * Configurar este URL no backoffice da ifthenpay como "callback URL".
  * A ifthenpay envia orderId + estado do pagamento.

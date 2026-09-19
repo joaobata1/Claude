@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { submitDailySiba, generateDailyReport } from "@/lib/siba";
 
+export const maxDuration = 30;
+
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }

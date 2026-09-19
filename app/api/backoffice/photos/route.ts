@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadPhoto, deletePhoto } from "@/lib/storage";
 
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
   const { imageBase64, mediaType, fileName } = await req.json();
   if (!imageBase64 || !mediaType) {
