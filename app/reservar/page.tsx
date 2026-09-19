@@ -55,6 +55,12 @@ function defaultCheckout(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function nextDay(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function Reservar() {
   const searchParams = useSearchParams();
   const stored = loadStoredState();
@@ -132,6 +138,7 @@ function Reservar() {
   const datesUnavailable = rangeOverlapsBlocked(checkin, checkout, blockedDates);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [checkedDates, setCheckedDates] = useState<{ checkin: string; checkout: string } | null>(null);
+  const [priceFailed, setPriceFailed] = useState(false);
   const [priceBreakdown, setPriceBreakdown] = useState<{
     nights: number;
     nightsSubtotal: number;
@@ -148,14 +155,27 @@ function Reservar() {
   // hóspede muda check-in/check-out, deixa de corresponder, sem precisar de um efeito.
   const availabilityChecked = checkedDates?.checkin === checkin && checkedDates?.checkout === checkout;
 
+  // Saída anterior (ou igual) à entrada não é um intervalo: sem isto, a procura de datas
+  // ocupadas não percorria noite nenhuma, dava "livre", e o ecrã anunciava datas
+  // disponíveis para uma estadia impossível — e sem preço, porque o cálculo falhava.
+  const invalidRange = !!checkin && !!checkout && checkout <= checkin;
+
   const nightsOutOfRange =
     !!priceBreakdown &&
     ((priceBreakdown.minNights != null && priceBreakdown.nights < priceBreakdown.minNights) ||
       (priceBreakdown.maxNights != null && priceBreakdown.nights > priceBreakdown.maxNights));
 
+  /** Mantém a saída sempre depois da entrada, empurrando-a uma noite se for preciso. */
+  function changeCheckin(value: string) {
+    setCheckin(value);
+    if (value && checkout && checkout <= value) setCheckout(nextDay(value));
+  }
+
   async function checkAvailability() {
+    if (invalidRange) return;
     setCheckingAvailability(true);
     setPriceBreakdown(null);
+    setPriceFailed(false);
     const requestedCheckin = checkin;
     const requestedCheckout = checkout;
     try {
@@ -166,9 +186,10 @@ function Reservar() {
       if (!rangeOverlapsBlocked(requestedCheckin, requestedCheckout, nextBlocked)) {
         const priceRes = await fetch(`/api/pricing?checkin=${requestedCheckin}&checkout=${requestedCheckout}`);
         if (priceRes.ok) setPriceBreakdown(await priceRes.json());
+        else setPriceFailed(true);
       }
     } catch {
-      // mantém o conjunto anterior se o pedido falhar
+      setPriceFailed(true);
     }
     setCheckedDates({ checkin: requestedCheckin, checkout: requestedCheckout });
     setCheckingAvailability(false);
@@ -269,7 +290,7 @@ function Reservar() {
                 className="w-full border rounded px-3 py-2"
                 value={checkin}
                 min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setCheckin(e.target.value)}
+                onChange={(e) => changeCheckin(e.target.value)}
               />
             </div>
             <div>
@@ -278,7 +299,7 @@ function Reservar() {
                 type="date"
                 className="w-full border rounded px-3 py-2"
                 value={checkout}
-                min={checkin || new Date().toISOString().slice(0, 10)}
+                min={checkin ? nextDay(checkin) : new Date().toISOString().slice(0, 10)}
                 onChange={(e) => setCheckout(e.target.value)}
               />
             </div>
@@ -286,14 +307,18 @@ function Reservar() {
 
           <button
             onClick={checkAvailability}
-            disabled={checkingAvailability || !checkin || !checkout}
+            disabled={checkingAvailability || !checkin || !checkout || invalidRange}
             className="w-full border rounded py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
             {checkingAvailability ? t.checkingAvailability : getDictionary(locale).widget.checkAvailability}
           </button>
 
-          {datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
-          {availabilityChecked && !datesUnavailable && (
+          {invalidRange && <p className="text-red-600 text-sm">{t.invalidDateRange}</p>}
+          {!invalidRange && datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
+          {!invalidRange && availabilityChecked && !datesUnavailable && priceFailed && (
+            <p className="text-red-600 text-sm">{t.priceUnavailable}</p>
+          )}
+          {!invalidRange && availabilityChecked && !datesUnavailable && !priceFailed && (
             <div className="border rounded-lg p-3 bg-green-50 border-green-200">
               <p className="text-green-600 text-sm font-medium mb-2">{t.datesAvailable}</p>
               {priceBreakdown && (
@@ -386,7 +411,7 @@ function Reservar() {
 
           <button
             onClick={handleBook}
-            disabled={loading || datesUnavailable || !checkin || !checkout || nightsOutOfRange}
+            disabled={loading || datesUnavailable || !checkin || !checkout || invalidRange || nightsOutOfRange}
             className="w-full bg-gray-900 text-white rounded py-3 font-medium disabled:opacity-50"
           >
             {loading ? t.processing : t.continueToPayment}

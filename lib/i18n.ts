@@ -49,6 +49,8 @@ interface Dict {
     heading: string;
     datesUnavailable: string;
     datesAvailable: string;
+    invalidDateRange: string;
+    priceUnavailable: string;
     checkingAvailability: string;
     guestsCount: string;
     holderName: string;
@@ -146,6 +148,8 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Reservar",
       datesUnavailable: "Essas datas já não estão disponíveis. Escolha outro intervalo.",
       datesAvailable: "Datas disponíveis!",
+      invalidDateRange: "A data de saída tem de ser posterior à data de entrada.",
+      priceUnavailable: "Não foi possível calcular o preço para estas datas. Tente outras datas.",
       checkingAvailability: "A verificar...",
       guestsCount: "Número de hóspedes",
       holderName: "Nome do titular da reserva",
@@ -241,6 +245,8 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Book",
       datesUnavailable: "Those dates are no longer available. Please choose another range.",
       datesAvailable: "Dates available!",
+      invalidDateRange: "The check-out date must be after the check-in date.",
+      priceUnavailable: "We could not work out a price for these dates. Please try different dates.",
       checkingAvailability: "Checking...",
       guestsCount: "Number of guests",
       holderName: "Booking holder's name",
@@ -336,6 +342,8 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Buchen",
       datesUnavailable: "Diese Termine sind nicht mehr verfügbar. Bitte wählen Sie einen anderen Zeitraum.",
       datesAvailable: "Termine verfügbar!",
+      invalidDateRange: "Das Abreisedatum muss nach dem Anreisedatum liegen.",
+      priceUnavailable: "Für diese Termine konnte kein Preis ermittelt werden. Bitte andere Termine wählen.",
       checkingAvailability: "Wird geprüft...",
       guestsCount: "Anzahl der Gäste",
       holderName: "Name des Buchungsinhabers",

@@ -25,6 +25,18 @@ export default function BookingSearchWidget({
   const [checkout, setCheckout] = useState(inAWeek);
   const [guestsCount, setGuestsCount] = useState(2);
 
+  function nextDay(iso: string): string {
+    const d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  /** A saída tem de ser sempre depois da entrada — senão seguiria um intervalo impossível para /reservar. */
+  function changeCheckin(value: string) {
+    setCheckin(value);
+    if (value && checkout && checkout <= value) setCheckout(nextDay(value));
+  }
+
   function handleSearch() {
     const params = new URLSearchParams();
     if (checkin) params.set("checkin", checkin);
@@ -51,7 +63,7 @@ export default function BookingSearchWidget({
               className="w-full border rounded px-2 py-2 text-sm"
               value={checkin}
               min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setCheckin(e.target.value)}
+              onChange={(e) => changeCheckin(e.target.value)}
             />
           </div>
           <div>
@@ -60,7 +72,7 @@ export default function BookingSearchWidget({
               type="date"
               className="w-full border rounded px-2 py-2 text-sm"
               value={checkout}
-              min={checkin || new Date().toISOString().slice(0, 10)}
+              min={checkin ? nextDay(checkin) : new Date().toISOString().slice(0, 10)}
               onChange={(e) => setCheckout(e.target.value)}
             />
           </div>
