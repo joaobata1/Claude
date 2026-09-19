@@ -31,8 +31,9 @@ export default async function Home() {
   const dict = getDictionary(locale);
 
   const coverPhoto = settings.cover_photo_url || FALLBACK_COVER;
-  const description = settings.site_description || DEFAULT_DESCRIPTION;
-  const about = settings.site_about || "";
+  const description =
+    settings[`site_description_${locale}`] || settings.site_description_pt || settings.site_description || DEFAULT_DESCRIPTION;
+  const about = settings[`site_about_${locale}`] || settings.site_about_pt || settings.site_about || "";
   const siteName = settings.site_name || DEFAULT_NAME;
   const alNumber = settings.al_registration_number || DEFAULT_AL_NUMBER;
   const price = parseFloat(settings.price_per_night ?? "0") || 0;
@@ -49,11 +50,11 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-white text-gray-900">
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 font-semibold">
             {settings.site_logo_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={settings.site_logo_url} alt={siteName} className="h-8 object-contain" />
+              <img src={settings.site_logo_url} alt={siteName} className="h-14 object-contain" />
             ) : (
               <span>{siteName}</span>
             )}
@@ -143,6 +144,31 @@ export default async function Home() {
             <div>
               <h3 className="text-lg font-medium mb-3">{dict.home.aboutUs}</h3>
               <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{about}</p>
+            </div>
+          )}
+
+          {(settings.contact_phone || settings.contact_email || settings.contact_address) && (
+            <div>
+              <h3 className="text-lg font-medium mb-3">{dict.home.contact}</h3>
+              <ul className="text-gray-600 text-sm space-y-1.5">
+                {settings.contact_phone && (
+                  <li>
+                    {dict.home.contactPhone}:{" "}
+                    <a href={`tel:${settings.contact_phone.replace(/\s/g, "")}`} className="hover:text-gray-900 underline">
+                      {settings.contact_phone}
+                    </a>
+                  </li>
+                )}
+                {settings.contact_email && (
+                  <li>
+                    {dict.home.contactEmail}:{" "}
+                    <a href={`mailto:${settings.contact_email}`} className="hover:text-gray-900 underline">
+                      {settings.contact_email}
+                    </a>
+                  </li>
+                )}
+                {settings.contact_address && <li>{settings.contact_address}</li>}
+              </ul>
             </div>
           )}
         </div>

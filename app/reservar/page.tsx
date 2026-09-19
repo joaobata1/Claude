@@ -45,14 +45,24 @@ function rangeOverlapsBlocked(checkin: string, checkout: string, blocked: Set<st
   return false;
 }
 
+function defaultCheckin(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function defaultCheckout(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().slice(0, 10);
+}
+
 function Reservar() {
   const searchParams = useSearchParams();
   const stored = loadStoredState();
   const [locale, setLocale] = useLocale();
   const t = getDictionary(locale).reservar;
   const [step, setStep] = useState<"datas" | "hospedes" | "confirmado">(stored.step ?? "datas");
-  const [checkin, setCheckin] = useState(stored.checkin ?? searchParams.get("checkin") ?? "");
-  const [checkout, setCheckout] = useState(stored.checkout ?? searchParams.get("checkout") ?? "");
+  const [checkin, setCheckin] = useState(stored.checkin ?? searchParams.get("checkin") ?? defaultCheckin());
+  const [checkout, setCheckout] = useState(stored.checkout ?? searchParams.get("checkout") ?? defaultCheckout());
   const [guestsCount, setGuestsCount] = useState(stored.guestsCount ?? (Number(searchParams.get("guests")) || 2));
   const [guestName, setGuestName] = useState(stored.guestName ?? "");
   const [guestEmail, setGuestEmail] = useState(stored.guestEmail ?? "");
@@ -120,6 +130,39 @@ function Reservar() {
   }, []);
 
   const datesUnavailable = rangeOverlapsBlocked(checkin, checkout, blockedDates);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [checkedDates, setCheckedDates] = useState<{ checkin: string; checkout: string } | null>(null);
+  const [priceBreakdown, setPriceBreakdown] = useState<{
+    nights: number;
+    nightsSubtotal: number;
+    fees: { id: string; name: string; amount: number }[];
+    total: number;
+  } | null>(null);
+
+  // Um resultado só é válido para as datas exatas com que foi pedido — assim que o
+  // hóspede muda check-in/check-out, deixa de corresponder, sem precisar de um efeito.
+  const availabilityChecked = checkedDates?.checkin === checkin && checkedDates?.checkout === checkout;
+
+  async function checkAvailability() {
+    setCheckingAvailability(true);
+    setPriceBreakdown(null);
+    const requestedCheckin = checkin;
+    const requestedCheckout = checkout;
+    try {
+      const res = await fetch("/api/availability");
+      const data = await res.json();
+      const nextBlocked = new Set<string>(data.blockedDates ?? []);
+      setBlockedDates(nextBlocked);
+      if (!rangeOverlapsBlocked(requestedCheckin, requestedCheckout, nextBlocked)) {
+        const priceRes = await fetch(`/api/pricing?checkin=${requestedCheckin}&checkout=${requestedCheckout}`);
+        if (priceRes.ok) setPriceBreakdown(await priceRes.json());
+      }
+    } catch {
+      // mantém o conjunto anterior se o pedido falhar
+    }
+    setCheckedDates({ checkin: requestedCheckin, checkout: requestedCheckout });
+    setCheckingAvailability(false);
+  }
 
   async function handleBook() {
     setError(null);
@@ -229,7 +272,38 @@ function Reservar() {
             </div>
           </div>
 
+          <button
+            onClick={checkAvailability}
+            disabled={checkingAvailability || !checkin || !checkout}
+            className="w-full border rounded py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+          >
+            {checkingAvailability ? t.checkingAvailability : getDictionary(locale).widget.checkAvailability}
+          </button>
+
           {datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
+          {availabilityChecked && !datesUnavailable && (
+            <div className="border rounded-lg p-3 bg-green-50 border-green-200">
+              <p className="text-green-600 text-sm font-medium mb-2">{t.datesAvailable}</p>
+              {priceBreakdown && (
+                <div className="text-sm text-gray-700 space-y-1">
+                  <div className="flex justify-between">
+                    <span>{interpolate(t.nightsLabel, { nights: priceBreakdown.nights })}</span>
+                    <span>€{priceBreakdown.nightsSubtotal.toFixed(2)}</span>
+                  </div>
+                  {priceBreakdown.fees.map((f) => (
+                    <div key={f.id} className="flex justify-between text-gray-500">
+                      <span>{f.name}</span>
+                      <span>€{f.amount.toFixed(2)}</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                    <span>{t.totalLabel}</span>
+                    <span>€{priceBreakdown.total.toFixed(2)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm text-gray-600 mb-1">{t.guestsCount}</label>

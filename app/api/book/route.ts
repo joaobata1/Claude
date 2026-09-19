@@ -4,6 +4,7 @@ import { sql, ensureSchema, getSetting } from "@/lib/db";
 import { isRangeAvailable } from "@/lib/availability";
 import { createMbwayRequest, createCardPaymentLink } from "@/lib/ifthenpay";
 import { sendBookingConfirmationEmail } from "@/lib/booking-messages";
+import { calculateBookingPrice } from "@/lib/pricing";
 
 class DatesUnavailableError extends Error {}
 
@@ -20,11 +21,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Datas inválidas." }, { status: 400 });
   }
 
-  const nights =
-    (new Date(checkout).getTime() - new Date(checkin).getTime()) / (1000 * 60 * 60 * 24);
-  const pricePerNight = parseFloat((await getSetting("price_per_night")) ?? "0");
-  const cleaningFee = parseFloat((await getSetting("cleaning_fee")) ?? "0");
-  const total = nights * pricePerNight + cleaningFee;
+  // Soma o preço de cada noite (o próprio do dia, se definido no calendário, senão o
+  // preço por omissão) + as taxas configuradas no backoffice — nunca um preço fixo.
+  const priceBreakdown = await calculateBookingPrice(checkin, checkout);
+  const total = priceBreakdown.total;
+  const feesTotal = priceBreakdown.fees.reduce((sum, f) => sum + f.amount, 0);
 
   await ensureSchema();
   const bookingId = randomUUID();
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
       return tx<{ booking_number: number }[]>`
         INSERT INTO bookings
         (id, source, guest_name, guest_email, guest_phone, checkin, checkout, guests_count, price_total, cleaning_cost, payment_status, payment_method)
-        VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail ?? null}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${cleaningFee}, 'pending', ${paymentMethod})
+        VALUES (${bookingId}, 'site', ${guestName}, ${guestEmail ?? null}, ${guestPhone}, ${checkin}, ${checkout}, ${guestsCount ?? 1}, ${total}, ${feesTotal}, 'pending', ${paymentMethod})
         RETURNING booking_number
       `;
     });

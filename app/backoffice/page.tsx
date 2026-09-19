@@ -73,7 +73,7 @@ interface AutomationRule {
 const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   { id: "ical", label: "iCal", fields: [] },
   { id: "mensagens", label: "Mensagens", fields: [] },
-  { id: "regras", label: "Regras & Preços", fields: ["price_per_night", "cleaning_fee", "cleaning_contact_phone"] },
+  { id: "regras", label: "Regras & Preços", fields: ["price_per_night", "cleaning_contact_phone"] },
   { id: "nuki", label: "Nuki", fields: ["nuki_api_token", "nuki_smartlock_id", "nuki_checkin_hour", "nuki_checkout_hour"] },
   {
     id: "pagamentos",
@@ -129,12 +129,30 @@ export default function Backoffice() {
   const [savingTemplates, setSavingTemplates] = useState(false);
   const [templatesSavedMsg, setTemplatesSavedMsg] = useState("");
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
+  const [contentLang, setContentLang] = useState<"pt" | "en" | "de">("pt");
+  const [fees, setFees] = useState<{ id: string; name: string; value: number; type: "fixed" | "percent" }[]>([]);
 
   useEffect(() => {
     fetch("/api/backoffice/settings")
       .then((r) => r.json())
       .then((data) => {
+        // Migração: se o texto PT novo ainda não foi preenchido, usa o campo antigo
+        // (de antes de existirem versões por idioma) como ponto de partida.
+        if (!data.site_description_pt && data.site_description) data.site_description_pt = data.site_description;
+        if (!data.site_about_pt && data.site_about) data.site_about_pt = data.site_about;
         setSettings(data);
+        try {
+          const parsed = data.fees_config ? JSON.parse(data.fees_config) : null;
+          if (Array.isArray(parsed)) {
+            setFees(parsed);
+          } else {
+            // Migração: sem taxas configuradas ainda — usa o valor antigo de "cleaning_fee" como ponto de partida.
+            const legacyCleaningFee = parseFloat(data.cleaning_fee ?? "0") || 0;
+            setFees(legacyCleaningFee > 0 ? [{ id: crypto.randomUUID(), name: "Limpeza", value: legacyCleaningFee, type: "fixed" }] : []);
+          }
+        } catch {
+          setFees([]);
+        }
         try {
           const parsed = data.ical_sources ? JSON.parse(data.ical_sources) : [];
           setIcalSources(Array.isArray(parsed) ? parsed : []);
@@ -274,6 +292,22 @@ export default function Backoffice() {
     setIcalSources((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function addFee() {
+    setFees((prev) => [...prev, { id: crypto.randomUUID(), name: "", value: 0, type: "fixed" }]);
+  }
+
+  function updateFee(index: number, field: "name" | "value" | "type", value: string) {
+    setFees((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: field === "value" ? Number(value) : value } as (typeof prev)[number];
+      return next;
+    });
+  }
+
+  function removeFee(index: number) {
+    setFees((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function currentTemplate(): MessageTemplateRow {
     return (
       templates.find((t) => t.type === msgType && t.language === msgLang) ?? {
@@ -334,6 +368,7 @@ export default function Backoffice() {
           ...settings,
           ical_sources: JSON.stringify(icalSources),
           automation_rules: JSON.stringify(automationRules),
+          fees_config: JSON.stringify(fees),
         }),
       });
       if (!res.ok) {
@@ -475,7 +510,7 @@ export default function Backoffice() {
           <div className="border-t mt-6 pt-5">
             <h2 className="text-lg font-medium mb-1">Exportar para o Airbnb/Booking/VRBO</h2>
             <p className="text-sm text-gray-500 mb-3">
-              Cole este link na opção "importar calendário" de cada plataforma, para bloquear lá as datas já
+              Cole este link na opção &quot;importar calendário&quot; de cada plataforma, para bloquear lá as datas já
               reservadas diretamente no site (evita reservas em duplicado).
             </p>
             <input
@@ -643,6 +678,51 @@ export default function Backoffice() {
           </div>
 
           <div className="border-t pt-6">
+            <h2 className="text-lg font-medium mb-1">Taxas</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Somadas ao preço das noites na página de reserva. Podem ser um valor fixo em € ou uma percentagem
+              sobre o valor das noites (ex: limpeza, lençóis, taxa turística).
+            </p>
+            <div className="space-y-2">
+              {fees.map((fee, i) => (
+                <div key={fee.id} className="flex items-center gap-2">
+                  <input
+                    placeholder="Nome (ex: Limpeza)"
+                    className="flex-1 border rounded px-3 py-2 text-sm"
+                    value={fee.name}
+                    onChange={(e) => updateFee(i, "name", e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    step={0.01}
+                    className="w-24 border rounded px-2 py-2 text-sm"
+                    value={fee.value}
+                    onChange={(e) => updateFee(i, "value", e.target.value)}
+                  />
+                  <select
+                    className="border rounded px-2 py-2 text-sm"
+                    value={fee.type}
+                    onChange={(e) => updateFee(i, "type", e.target.value)}
+                  >
+                    <option value="fixed">€</option>
+                    <option value="percent">%</option>
+                  </select>
+                  <button
+                    onClick={() => removeFee(i)}
+                    className="text-red-500 text-sm px-2 py-1 hover:bg-red-50 rounded"
+                    aria-label="Remover taxa"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button onClick={addFee} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
+              + Adicionar taxa
+            </button>
+          </div>
+
+          <div className="border-t pt-6">
             <h2 className="text-lg font-medium mb-1">Envio da chave Nuki e instruções de check-in</h2>
             <p className="text-sm text-gray-500 mb-3">
               Decide se o código Nuki e as instruções de check-in podem ser enviados sem os dados dos hóspedes,
@@ -805,20 +885,70 @@ export default function Backoffice() {
           {photoError && <p className="text-sm text-red-600">{photoError}</p>}
 
           <div>
+            <h2 className="text-lg font-medium mb-1">Descrição e &quot;Sobre nós&quot;</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Escreva o texto em cada idioma — o site mostra a versão certa conforme o idioma escolhido pelo
+              visitante (se um idioma não estiver preenchido, mostra a versão em Português).
+            </p>
+            <div className="flex gap-1 mb-4">
+              {(["pt", "en", "de"] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setContentLang(l)}
+                  className={`px-3 py-1.5 rounded text-xs border ${
+                    contentLang === l ? "bg-gray-900 text-white border-gray-900" : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {{ pt: "Português", en: "Inglês", de: "Alemão" }[l]}
+                </button>
+              ))}
+            </div>
             <label className="block text-sm text-gray-600 mb-1">Descrição da casa</label>
             <textarea
-              className="w-full border rounded px-3 py-2 h-28"
-              value={settings.site_description ?? ""}
-              onChange={(e) => setSettings({ ...settings, site_description: e.target.value })}
+              className="w-full border rounded px-3 py-2 h-28 mb-4"
+              value={settings[`site_description_${contentLang}`] ?? ""}
+              onChange={(e) => setSettings({ ...settings, [`site_description_${contentLang}`]: e.target.value })}
             />
-          </div>
-          <div>
             <label className="block text-sm text-gray-600 mb-1">Sobre nós</label>
             <textarea
               className="w-full border rounded px-3 py-2 h-28"
-              value={settings.site_about ?? ""}
-              onChange={(e) => setSettings({ ...settings, site_about: e.target.value })}
+              value={settings[`site_about_${contentLang}`] ?? ""}
+              onChange={(e) => setSettings({ ...settings, [`site_about_${contentLang}`]: e.target.value })}
             />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-medium mb-1">Contactos</h2>
+            <p className="text-sm text-gray-500 mb-3">Mostrados sempre visíveis no site.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Telefone</label>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="351912345678"
+                  value={settings.contact_phone ?? ""}
+                  onChange={(e) => setSettings({ ...settings, contact_phone: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Email</label>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="reservas@exemplo.pt"
+                  value={settings.contact_email ?? ""}
+                  onChange={(e) => setSettings({ ...settings, contact_email: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Morada</label>
+                <input
+                  className="w-full border rounded px-3 py-2"
+                  placeholder="Urbanização do Espartal, Lote I5 1ºESQ, 8670-119 Aljezur, Portugal"
+                  value={settings.contact_address ?? ""}
+                  onChange={(e) => setSettings({ ...settings, contact_address: e.target.value })}
+                />
+              </div>
+            </div>
           </div>
         </section>
       )}

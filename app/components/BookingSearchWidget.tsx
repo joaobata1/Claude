@@ -15,8 +15,14 @@ export default function BookingSearchWidget({
 }) {
   const router = useRouter();
   const dict = getDictionary(locale).widget;
-  const [checkin, setCheckin] = useState("");
-  const [checkout, setCheckout] = useState("");
+  const today = new Date().toISOString().slice(0, 10);
+  const inAWeek = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString().slice(0, 10);
+  })();
+  const [checkin, setCheckin] = useState(today);
+  const [checkout, setCheckout] = useState(inAWeek);
   const [guestsCount, setGuestsCount] = useState(2);
 
   function handleSearch() {

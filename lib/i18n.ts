@@ -30,6 +30,10 @@ interface Dict {
     aboutUs: string;
     alRegistration: string;
     footerRights: string;
+    contact: string;
+    contactEmail: string;
+    contactPhone: string;
+    addressRevealNotice: string;
   };
   widget: {
     perNight: string;
@@ -44,6 +48,8 @@ interface Dict {
   reservar: {
     heading: string;
     datesUnavailable: string;
+    datesAvailable: string;
+    checkingAvailability: string;
     guestsCount: string;
     holderName: string;
     email: string;
@@ -69,6 +75,16 @@ interface Dict {
     waitingGuestData: string;
     waitingPayment: string;
     dontForgetTransfer: string;
+    propertyDetails: string;
+    address: string;
+    contactPhone: string;
+    minNightsError: string;
+    maxNightsError: string;
+    weeklyDiscountNotice: string;
+    monthlyDiscountNotice: string;
+    cancellationNotice: string;
+    nightsLabel: string;
+    totalLabel: string;
   };
   guestForm: {
     title: string;
@@ -110,6 +126,11 @@ const dictionaries: Record<Locale, Dict> = {
       aboutUs: "Sobre nós",
       alRegistration: "Registo AL",
       footerRights: "Todos os direitos reservados.",
+      contact: "Contactos",
+      contactEmail: "Email",
+      contactPhone: "Telefone",
+      addressRevealNotice:
+        "Depois de efetuar a reserva, todos os dados da propriedade, incluindo o número de telefone e endereço, são providenciados na sua confirmação de reserva e na sua conta.",
     },
     widget: {
       perNight: "/ noite",
@@ -124,6 +145,8 @@ const dictionaries: Record<Locale, Dict> = {
     reservar: {
       heading: "Reservar",
       datesUnavailable: "Essas datas já não estão disponíveis. Escolha outro intervalo.",
+      datesAvailable: "Datas disponíveis!",
+      checkingAvailability: "A verificar...",
       guestsCount: "Número de hóspedes",
       holderName: "Nome do titular da reserva",
       email: "Email",
@@ -149,6 +172,16 @@ const dictionaries: Record<Locale, Dict> = {
       waitingGuestData: "O pagamento foi confirmado, mas o código de acesso só é enviado depois de todos os hóspedes terem os dados preenchidos.",
       waitingPayment: "Assim que o pagamento for confirmado, vai receber o código de acesso por SMS e email.",
       dontForgetTransfer: "Não se esqueça de transferir {amount} para:",
+      propertyDetails: "Dados da propriedade",
+      address: "Morada",
+      contactPhone: "Telefone",
+      minNightsError: "Esta reserva exige um mínimo de {nights} noites.",
+      maxNightsError: "Esta reserva permite um máximo de {nights} noites.",
+      weeklyDiscountNotice: "Desconto de {percent}% aplicado por reserva semanal.",
+      monthlyDiscountNotice: "Desconto de {percent}% aplicado por reserva mensal.",
+      cancellationNotice: "Cancelamento grátis até {days} dias antes do check-in.",
+      nightsLabel: "Preço de {nights} noite(s)",
+      totalLabel: "Total",
     },
     guestForm: {
       title: "Dados dos hóspedes",
@@ -188,6 +221,11 @@ const dictionaries: Record<Locale, Dict> = {
       aboutUs: "About us",
       alRegistration: "AL registration",
       footerRights: "All rights reserved.",
+      contact: "Contact",
+      contactEmail: "Email",
+      contactPhone: "Phone",
+      addressRevealNotice:
+        "After you complete your booking, all property details, including the phone number and address, are provided in your booking confirmation and in your account.",
     },
     widget: {
       perNight: "/ night",
@@ -202,6 +240,8 @@ const dictionaries: Record<Locale, Dict> = {
     reservar: {
       heading: "Book",
       datesUnavailable: "Those dates are no longer available. Please choose another range.",
+      datesAvailable: "Dates available!",
+      checkingAvailability: "Checking...",
       guestsCount: "Number of guests",
       holderName: "Booking holder's name",
       email: "Email",
@@ -227,6 +267,16 @@ const dictionaries: Record<Locale, Dict> = {
       waitingGuestData: "Payment has been confirmed, but the access code is only sent once all guests' details are filled in.",
       waitingPayment: "As soon as payment is confirmed, you'll receive the access code by SMS and email.",
       dontForgetTransfer: "Don't forget to transfer {amount} to:",
+      propertyDetails: "Property details",
+      address: "Address",
+      contactPhone: "Phone",
+      minNightsError: "This booking requires a minimum of {nights} nights.",
+      maxNightsError: "This booking allows a maximum of {nights} nights.",
+      weeklyDiscountNotice: "{percent}% discount applied for a weekly stay.",
+      monthlyDiscountNotice: "{percent}% discount applied for a monthly stay.",
+      cancellationNotice: "Free cancellation up to {days} days before check-in.",
+      nightsLabel: "Price for {nights} night(s)",
+      totalLabel: "Total",
     },
     guestForm: {
       title: "Guest details",
@@ -266,6 +316,11 @@ const dictionaries: Record<Locale, Dict> = {
       aboutUs: "Über uns",
       alRegistration: "AL-Registrierung",
       footerRights: "Alle Rechte vorbehalten.",
+      contact: "Kontakt",
+      contactEmail: "E-Mail",
+      contactPhone: "Telefon",
+      addressRevealNotice:
+        "Nach Abschluss Ihrer Buchung erhalten Sie alle Angaben zur Unterkunft, einschließlich Telefonnummer und Adresse, in Ihrer Buchungsbestätigung und in Ihrem Konto.",
     },
     widget: {
       perNight: "/ Nacht",
@@ -280,6 +335,8 @@ const dictionaries: Record<Locale, Dict> = {
     reservar: {
       heading: "Buchen",
       datesUnavailable: "Diese Termine sind nicht mehr verfügbar. Bitte wählen Sie einen anderen Zeitraum.",
+      datesAvailable: "Termine verfügbar!",
+      checkingAvailability: "Wird geprüft...",
       guestsCount: "Anzahl der Gäste",
       holderName: "Name des Buchungsinhabers",
       email: "E-Mail",
@@ -305,6 +362,16 @@ const dictionaries: Record<Locale, Dict> = {
       waitingGuestData: "Die Zahlung wurde bestätigt, aber der Zugangscode wird erst gesendet, sobald die Daten aller Gäste ausgefüllt sind.",
       waitingPayment: "Sobald die Zahlung bestätigt ist, erhalten Sie den Zugangscode per SMS und E-Mail.",
       dontForgetTransfer: "Vergessen Sie nicht, {amount} zu überweisen an:",
+      propertyDetails: "Angaben zur Unterkunft",
+      address: "Adresse",
+      contactPhone: "Telefon",
+      minNightsError: "Diese Buchung erfordert mindestens {nights} Nächte.",
+      maxNightsError: "Diese Buchung erlaubt höchstens {nights} Nächte.",
+      weeklyDiscountNotice: "{percent}% Rabatt für einen wöchentlichen Aufenthalt angewendet.",
+      monthlyDiscountNotice: "{percent}% Rabatt für einen monatlichen Aufenthalt angewendet.",
+      cancellationNotice: "Kostenlose Stornierung bis {days} Tage vor dem Check-in.",
+      nightsLabel: "Preis für {nights} Nacht/Nächte",
+      totalLabel: "Gesamt",
     },
     guestForm: {
       title: "Gästedaten",

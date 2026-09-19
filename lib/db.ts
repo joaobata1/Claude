@@ -142,7 +142,8 @@ export const SETTINGS_KEYS = [
   "bank_iban", // IBAN mostrado nas mensagens quando o hóspede escolhe pagar por transferência
   "bank_account_holder", // nome do titular da conta, mostrado junto ao IBAN
   "price_per_night",
-  "cleaning_fee",
+  "cleaning_fee", // mantido por compatibilidade — ver fees_config para o sistema de taxas atual
+  "fees_config", // JSON: [{ id, name, value, type: 'fixed'|'percent' }] — taxas somadas ao preço das noites
   "vonage_api_key",
   "vonage_api_secret",
   "vonage_sender_id",
@@ -174,8 +175,18 @@ export const SETTINGS_KEYS = [
   "al_registration_number", // nº de registo de Alojamento Local, obrigatório por lei mostrar no site
   "cover_photo_url", // foto de capa (Supabase Storage)
   "gallery_photo_urls", // JSON: string[] — fotos da galeria (Supabase Storage)
-  "site_description", // descrição da casa, mostrada na página inicial
-  "site_about", // texto "Sobre nós"
+  "site_description", // descrição da casa em PT (compatibilidade com versões antigas, usada como fallback)
+  "site_description_pt",
+  "site_description_en",
+  "site_description_de",
+  "site_about", // texto "Sobre nós" em PT (compatibilidade com versões antigas, usada como fallback)
+  "site_about_pt",
+  "site_about_en",
+  "site_about_de",
+  // Contactos — o telefone e a morada só são mostrados ao hóspede depois da reserva confirmada
+  "contact_phone",
+  "contact_email",
+  "contact_address",
   // Mensagens automáticas (chaves/instruções/personalizadas)
   "automation_rules", // JSON: [{ id, type, daysOffset, relativeTo: 'checkin'|'checkout', enabled }]
 ] as const;
