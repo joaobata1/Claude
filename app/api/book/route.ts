@@ -5,6 +5,7 @@ import { isRangeAvailable } from "@/lib/availability";
 import { createMbwayRequest, createCardPaymentLink } from "@/lib/ifthenpay";
 import { sendBookingConfirmationEmail } from "@/lib/booking-messages";
 import { calculateBookingPrice } from "@/lib/pricing";
+import { getRatePlanForCheckin } from "@/lib/rate-plans";
 
 export const maxDuration = 30;
 
@@ -21,6 +22,21 @@ export async function POST(req: NextRequest) {
   const isoDate = /^\d{4}-\d{2}-\d{2}$/;
   if (!isoDate.test(checkin) || !isoDate.test(checkout) || checkin >= checkout) {
     return NextResponse.json({ error: "Datas inválidas." }, { status: 400 });
+  }
+
+  const nightsCount = Math.round((new Date(checkout).getTime() - new Date(checkin).getTime()) / 86400000);
+  const ratePlan = await getRatePlanForCheckin(checkin);
+  if (ratePlan.minNights && nightsCount < ratePlan.minNights) {
+    return NextResponse.json(
+      { error: `Esta reserva exige um mínimo de ${ratePlan.minNights} noites.`, minNights: ratePlan.minNights },
+      { status: 400 }
+    );
+  }
+  if (ratePlan.maxNights && nightsCount > ratePlan.maxNights) {
+    return NextResponse.json(
+      { error: `Esta reserva permite um máximo de ${ratePlan.maxNights} noites.`, maxNights: ratePlan.maxNights },
+      { status: 400 }
+    );
   }
 
   // Soma o preço de cada noite (o próprio do dia, se definido no calendário, senão o

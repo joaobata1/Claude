@@ -70,6 +70,30 @@ interface AutomationRule {
   enabled: boolean;
 }
 
+interface RatePlan {
+  id: string;
+  name: string;
+  color: string;
+  isDefault?: boolean;
+  cancellationDays: number | null;
+  minNights: number | null;
+  maxNights: number | null;
+  weeklyDiscountPercent: number | null;
+  monthlyDiscountPercent: number | null;
+}
+
+const DEFAULT_RATE_PLAN: RatePlan = {
+  id: "normal",
+  name: "Normal",
+  color: "#6366f1",
+  isDefault: true,
+  cancellationDays: null,
+  minNights: null,
+  maxNights: null,
+  weeklyDiscountPercent: null,
+  monthlyDiscountPercent: null,
+};
+
 const SECTIONS: { id: string; label: string; fields: string[] }[] = [
   { id: "ical", label: "iCal", fields: [] },
   { id: "mensagens", label: "Mensagens", fields: [] },
@@ -131,6 +155,7 @@ export default function Backoffice() {
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
   const [contentLang, setContentLang] = useState<"pt" | "en" | "de">("pt");
   const [fees, setFees] = useState<{ id: string; name: string; value: number; type: "fixed" | "percent" }[]>([]);
+  const [ratePlans, setRatePlans] = useState<RatePlan[]>([DEFAULT_RATE_PLAN]);
 
   useEffect(() => {
     fetch("/api/backoffice/settings")
@@ -152,6 +177,12 @@ export default function Backoffice() {
           }
         } catch {
           setFees([]);
+        }
+        try {
+          const parsed = data.rate_plans ? JSON.parse(data.rate_plans) : null;
+          setRatePlans(Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_RATE_PLAN]);
+        } catch {
+          setRatePlans([DEFAULT_RATE_PLAN]);
         }
         try {
           const parsed = data.ical_sources ? JSON.parse(data.ical_sources) : [];
@@ -308,6 +339,30 @@ export default function Backoffice() {
     setFees((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function addRatePlan() {
+    setRatePlans((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        name: "",
+        color: "#0ea5e9",
+        cancellationDays: null,
+        minNights: null,
+        maxNights: null,
+        weeklyDiscountPercent: null,
+        monthlyDiscountPercent: null,
+      },
+    ]);
+  }
+
+  function updateRatePlan(index: number, patch: Partial<RatePlan>) {
+    setRatePlans((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+  }
+
+  function removeRatePlan(index: number) {
+    setRatePlans((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function currentTemplate(): MessageTemplateRow {
     return (
       templates.find((t) => t.type === msgType && t.language === msgLang) ?? {
@@ -369,6 +424,7 @@ export default function Backoffice() {
           ical_sources: JSON.stringify(icalSources),
           automation_rules: JSON.stringify(automationRules),
           fees_config: JSON.stringify(fees),
+          rate_plans: JSON.stringify(ratePlans),
         }),
       });
       if (!res.ok) {
@@ -719,6 +775,115 @@ export default function Backoffice() {
             </div>
             <button onClick={addFee} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
               + Adicionar taxa
+            </button>
+          </div>
+
+          <div className="border-t pt-6">
+            <h2 className="text-lg font-medium mb-1">Tarifas</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              A tarifa &quot;Normal&quot; é aplicada por omissão. Crie outras tarifas com as suas próprias regras e
+              aplique-as a datas específicas no calendário (separador &quot;Tarifas&quot;) — cada uma tem uma cor
+              própria para se identificar facilmente na grelha.
+            </p>
+            <div className="space-y-3">
+              {ratePlans.map((plan, i) => (
+                <div key={plan.id} className="border rounded-lg p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={plan.color}
+                      onChange={(e) => updateRatePlan(i, { color: e.target.value })}
+                      className="w-9 h-9 rounded border shrink-0"
+                      aria-label="Cor da tarifa"
+                    />
+                    <input
+                      placeholder="Nome (ex: Época alta)"
+                      className="flex-1 border rounded px-3 py-2 text-sm"
+                      value={plan.name}
+                      onChange={(e) => updateRatePlan(i, { name: e.target.value })}
+                      disabled={plan.isDefault}
+                    />
+                    {plan.isDefault ? (
+                      <span className="text-xs text-gray-400 shrink-0 px-2">Tarifa por omissão</span>
+                    ) : (
+                      <button
+                        onClick={() => removeRatePlan(i)}
+                        className="text-red-500 text-sm px-2 py-1 hover:bg-red-50 rounded shrink-0"
+                      >
+                        Remover
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Cancelamento grátis até (dias antes)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        placeholder="Sem limite"
+                        className="w-full border rounded px-2 py-1.5 text-sm"
+                        value={plan.cancellationDays ?? ""}
+                        onChange={(e) =>
+                          updateRatePlan(i, { cancellationDays: e.target.value === "" ? null : Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Mínimo de noites</label>
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Sem mínimo"
+                        className="w-full border rounded px-2 py-1.5 text-sm"
+                        value={plan.minNights ?? ""}
+                        onChange={(e) => updateRatePlan(i, { minNights: e.target.value === "" ? null : Number(e.target.value) })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Máximo de noites</label>
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="Sem máximo"
+                        className="w-full border rounded px-2 py-1.5 text-sm"
+                        value={plan.maxNights ?? ""}
+                        onChange={(e) => updateRatePlan(i, { maxNights: e.target.value === "" ? null : Number(e.target.value) })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Desconto reserva semanal (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        placeholder="Desligado"
+                        className="w-full border rounded px-2 py-1.5 text-sm"
+                        value={plan.weeklyDiscountPercent ?? ""}
+                        onChange={(e) =>
+                          updateRatePlan(i, { weeklyDiscountPercent: e.target.value === "" ? null : Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Desconto reserva mensal (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        placeholder="Desligado"
+                        className="w-full border rounded px-2 py-1.5 text-sm"
+                        value={plan.monthlyDiscountPercent ?? ""}
+                        onChange={(e) =>
+                          updateRatePlan(i, { monthlyDiscountPercent: e.target.value === "" ? null : Number(e.target.value) })
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={addRatePlan} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
+              + Adicionar tarifa
             </button>
           </div>
 

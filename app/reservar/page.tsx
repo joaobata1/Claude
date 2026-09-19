@@ -136,12 +136,22 @@ function Reservar() {
     nights: number;
     nightsSubtotal: number;
     fees: { id: string; name: string; amount: number }[];
+    discountPercent: number | null;
+    discountAmount: number;
     total: number;
+    minNights: number | null;
+    maxNights: number | null;
+    cancellationDays: number | null;
   } | null>(null);
 
   // Um resultado só é válido para as datas exatas com que foi pedido — assim que o
   // hóspede muda check-in/check-out, deixa de corresponder, sem precisar de um efeito.
   const availabilityChecked = checkedDates?.checkin === checkin && checkedDates?.checkout === checkout;
+
+  const nightsOutOfRange =
+    !!priceBreakdown &&
+    ((priceBreakdown.minNights != null && priceBreakdown.nights < priceBreakdown.minNights) ||
+      (priceBreakdown.maxNights != null && priceBreakdown.nights > priceBreakdown.maxNights));
 
   async function checkAvailability() {
     setCheckingAvailability(true);
@@ -179,7 +189,9 @@ function Reservar() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? t.errorGeneric);
+        if (data.minNights) setError(interpolate(t.minNightsError, { nights: data.minNights }));
+        else if (data.maxNights) setError(interpolate(t.maxNightsError, { nights: data.maxNights }));
+        else setError(data.error ?? t.errorGeneric);
         setLoading(false);
         return;
       }
@@ -290,6 +302,17 @@ function Reservar() {
                     <span>{interpolate(t.nightsLabel, { nights: priceBreakdown.nights })}</span>
                     <span>€{priceBreakdown.nightsSubtotal.toFixed(2)}</span>
                   </div>
+                  {priceBreakdown.discountPercent && (
+                    <div className="flex justify-between text-green-700">
+                      <span>
+                        {interpolate(
+                          priceBreakdown.nights >= 28 ? t.monthlyDiscountNotice : t.weeklyDiscountNotice,
+                          { percent: priceBreakdown.discountPercent }
+                        )}
+                      </span>
+                      <span>-€{priceBreakdown.discountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   {priceBreakdown.fees.map((f) => (
                     <div key={f.id} className="flex justify-between text-gray-500">
                       <span>{f.name}</span>
@@ -300,7 +323,19 @@ function Reservar() {
                     <span>{t.totalLabel}</span>
                     <span>€{priceBreakdown.total.toFixed(2)}</span>
                   </div>
+                  {priceBreakdown.cancellationDays != null && (
+                    <p className="text-xs text-gray-500 pt-1">
+                      {interpolate(t.cancellationNotice, { days: priceBreakdown.cancellationDays })}
+                    </p>
+                  )}
                 </div>
+              )}
+              {nightsOutOfRange && priceBreakdown && (
+                <p className="text-red-600 text-sm mt-2">
+                  {priceBreakdown.minNights != null && priceBreakdown.nights < priceBreakdown.minNights
+                    ? interpolate(t.minNightsError, { nights: priceBreakdown.minNights })
+                    : interpolate(t.maxNightsError, { nights: priceBreakdown.maxNights ?? 0 })}
+                </p>
               )}
             </div>
           )}
@@ -351,7 +386,7 @@ function Reservar() {
 
           <button
             onClick={handleBook}
-            disabled={loading || datesUnavailable || !checkin || !checkout}
+            disabled={loading || datesUnavailable || !checkin || !checkout || nightsOutOfRange}
             className="w-full bg-gray-900 text-white rounded py-3 font-medium disabled:opacity-50"
           >
             {loading ? t.processing : t.continueToPayment}

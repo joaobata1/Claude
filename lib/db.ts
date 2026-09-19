@@ -97,6 +97,13 @@ async function initSchema() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS date_rate_plans (
+      date TEXT PRIMARY KEY,
+      rate_plan_id TEXT NOT NULL
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS message_templates (
       type TEXT NOT NULL,
       language TEXT NOT NULL,
@@ -147,6 +154,7 @@ export const SETTINGS_KEYS = [
   "price_per_night",
   "cleaning_fee", // mantido por compatibilidade — ver fees_config para o sistema de taxas atual
   "fees_config", // JSON: [{ id, name, value, type: 'fixed'|'percent' }] — taxas somadas ao preço das noites
+  "rate_plans", // JSON: [{ id, name, color, isDefault, cancellationDays, minNights, maxNights, weeklyDiscountPercent, monthlyDiscountPercent }]
   "vonage_api_key",
   "vonage_api_secret",
   "vonage_sender_id",
@@ -186,7 +194,7 @@ export const SETTINGS_KEYS = [
   "site_about_pt",
   "site_about_en",
   "site_about_de",
-  // Contactos — o telefone e a morada só são mostrados ao hóspede depois da reserva confirmada
+  // Contactos — mostrados sempre, publicamente, na página inicial
   "contact_phone",
   "contact_email",
   "contact_address",

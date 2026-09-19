@@ -39,8 +39,10 @@ o raciocínio por trás de cada decisão.
 - Links iCal dinâmicos, cada um com **comissão % configurável**
 - Interruptor ON/OFF: obrigar dados dos hóspedes antes de enviar chave + check-in
 - **Calendário** (`/backoffice/calendario`): vista mensal com reservas e bloqueios OTA,
-  preço por dia editável em linha, e popup para mudar preços em massa (intervalos de
-  datas + dias da semana)
+  preço por dia editável em linha, popup para mudar preços em massa (intervalos de
+  datas + dias da semana), feriados PT/DE/ES marcados com pontos coloridos, e
+  **Tarifas**: botão "Aplicar tarifa" para atribuir uma tarifa a um intervalo de datas
+  (com filtro de dias da semana), mostrada como uma barra colorida no topo do dia
 - **Nova reserva** (`/backoffice/nova-reserva`), para Airbnb/Booking/VRBO/Outros:
   - **Leitura automática por IA**: cole (Ctrl+V) ou carregue uma screenshot da reserva
     e os campos são pré-preenchidos (`lib/ai-vision.ts`, API da Anthropic)
@@ -71,6 +73,18 @@ o raciocínio por trás de cada decisão.
   mensagem de cancelamento) e um campo de **mensagem livre** para escrever e enviar
   texto avulso ao hóspede — tudo fica no histórico da conversa, incluindo o texto de
   cada mensagem enviada (pré-configurada ou livre)
+- **Tarifas** (`lib/rate-plans.ts`, definidas em Definições → Regras & Preços): a tarifa
+  "Normal" é aplicada por omissão; podem criar-se outras (cor própria) com cancelamento
+  grátis até X dias, mínimo/máximo de noites e desconto % para reservas semanais (≥7
+  noites) e mensais (≥28 noites, se ambos aplicáveis o maior desconto prevalece). A
+  tarifa que governa uma reserva é a atribuída à **data de check-in** — atribuição feita
+  no calendário, guardada em `date_rate_plans` (tabela: data → id da tarifa)
+- **Taxas** (Definições → Regras & Preços): lista configurável de taxas somadas ao preço
+  das noites (ex: limpeza, lençóis), cada uma fixa em € ou em % sobre o subtotal
+- **Preço da reserva** (`lib/pricing.ts`): soma o preço de cada noite (o do calendário,
+  se definido, senão o preço por omissão) − desconto semanal/mensal da tarifa + taxas =
+  total. Usado tanto em `/api/pricing` (mostrado ao hóspede antes de pagar) como em
+  `/api/book` (que também rejeita reservas fora do mínimo/máximo de noites da tarifa)
 
 **Páginas de gestão**
 - `/backoffice/reservas` — folha de reservas com semáforos (pagamento, dados SIBA,
@@ -83,10 +97,26 @@ o raciocínio por trás de cada decisão.
   Comissão, Limpeza, Liquido)
 
 **Site público**
-- `/` — página inicial dinâmica: preço, descrição e foto de capa vêm do backoffice
+- **3 idiomas** (PT/EN/DE) — `lib/i18n.ts` (dicionários) + `lib/i18n-server.ts` (idioma
+  lido de um cookie, sem rotas `/en`/`/de`) + `LanguageSwitcher`; o idioma do site é
+  independente do idioma de mensagens escolhido por reserva no backoffice
+- `/` — página inicial redesenhada: nav fixa com logótipo, hero, secção de comodidades,
+  pré-visualização da galeria, **descrição e "Sobre nós" editáveis por idioma** no
+  backoffice (Definições → Site), e **Contactos** (telefone/email/morada) sempre
+  visíveis — nunca escondidos até haver reserva confirmada
+- Logótipo, favicon, foto de capa e nº de registo AL geridos em Definições → Site
+  (Supabase Storage), tudo refletido de imediato sem novo deploy
 - `/fotos` — galeria de fotos do alojamento
-- `/reservar` — verifica disponibilidade em tempo real ao escolher datas, mantém os
-  dados preenchidos mesmo que a página recarregue (ex: ao trocar para a app do MB WAY)
+- `/reservar` — datas pré-preenchidas (hoje → +7 dias), botão explícito "Verificar
+  disponibilidade" que mostra o preço total (noites + desconto de tarifa + taxas) e a
+  política de cancelamento antes de o hóspede avançar; mantém os dados preenchidos mesmo
+  que a página recarregue (ex: ao trocar para a app do MB WAY)
+
+**Fiabilidade**
+- Todas as rotas que acedem à base de dados ou a APIs externas têm `export const
+  maxDuration` explícito — sem isto, o plano Hobby da Vercel corta a função aos 10s por
+  omissão, o que podia mostrar uma página em branco/presa a carregar se o Supabase
+  demorasse a responder (ex: a acordar de uma pausa por inatividade)
 
 ---
 

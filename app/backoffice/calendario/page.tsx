@@ -32,6 +32,13 @@ interface DateRange {
   end: string;
 }
 
+interface RatePlan {
+  id: string;
+  name: string;
+  color: string;
+  isDefault?: boolean;
+}
+
 const SOURCE_LABEL: Record<string, string> = {
   site: "Site",
   airbnb: "Airbnb",
@@ -54,6 +61,8 @@ const SOURCE_COLOR: Record<string, CellColor> = {
 };
 
 const FALLBACK_BLOCKED_COLOR: CellColor = { bg: "bg-amber-50", text: "text-amber-700" };
+
+const DEFAULT_RATE_PLAN: RatePlan = { id: "normal", name: "Normal", color: "#6366f1", isDefault: true };
 
 /** Cor de um bloqueio iCal por plataforma, a partir do nome dado ao link em Definições > iCal. */
 function colorForBlockedLabel(label: string): CellColor {
@@ -102,6 +111,8 @@ export default function Calendario() {
   const [blockedBySource, setBlockedBySource] = useState<Map<string, string>>(new Map());
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [defaultPrice, setDefaultPrice] = useState(0);
+  const [ratePlans, setRatePlans] = useState<RatePlan[]>([]);
+  const [ratePlanByDate, setRatePlanByDate] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -115,6 +126,13 @@ export default function Calendario() {
   const [bulkResult, setBulkResult] = useState<string | null>(null);
   const [bulkApplying, setBulkApplying] = useState(false);
   const [bulkSlow, setBulkSlow] = useState(false);
+
+  const [tarifaOpen, setTarifaOpen] = useState(false);
+  const [tarifaRanges, setTarifaRanges] = useState<DateRange[]>([{ id: crypto.randomUUID(), start: "", end: "" }]);
+  const [tarifaWeekdays, setTarifaWeekdays] = useState<Set<number>>(new Set());
+  const [tarifaPlanId, setTarifaPlanId] = useState("");
+  const [tarifaResult, setTarifaResult] = useState<string | null>(null);
+  const [tarifaApplying, setTarifaApplying] = useState(false);
 
   const grid = useMemo(() => buildMonthGrid(viewYear, viewMonth), [viewYear, viewMonth]);
 
@@ -146,8 +164,11 @@ export default function Calendario() {
         r.json()
       ),
       fetch("/api/backoffice/settings", { signal: controller.signal }).then((r) => r.json()),
+      fetch(`/api/backoffice/date-rate-plans?start=${start}&end=${end}`, { signal: controller.signal }).then((r) =>
+        r.json()
+      ),
     ])
-      .then(([bookingsData, blockedData, pricesData, settingsData]) => {
+      .then(([bookingsData, blockedData, pricesData, settingsData, ratePlansData]) => {
         if (cancelled) return;
         setLoadError(null);
         setBookings(bookingsData.bookings ?? []);
@@ -160,6 +181,13 @@ export default function Calendario() {
         }
         setPrices(map);
         setDefaultPrice(parseFloat(settingsData.price_per_night ?? "0") || 0);
+        try {
+          const parsed = settingsData.rate_plans ? JSON.parse(settingsData.rate_plans) : null;
+          setRatePlans(Array.isArray(parsed) && parsed.length > 0 ? parsed : [DEFAULT_RATE_PLAN]);
+        } catch {
+          setRatePlans([DEFAULT_RATE_PLAN]);
+        }
+        setRatePlanByDate(ratePlansData.ratePlansByDate ?? {});
         setLoading(false);
       })
       .catch((err) => {
@@ -300,6 +328,76 @@ export default function Calendario() {
     setBulkSlow(false);
   }
 
+  function addTarifaRange() {
+    setTarifaRanges([...tarifaRanges, { id: crypto.randomUUID(), start: "", end: "" }]);
+  }
+
+  function updateTarifaRange(id: string, field: "start" | "end", value: string) {
+    setTarifaRanges((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
+  }
+
+  function removeTarifaRange(id: string) {
+    setTarifaRanges((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  function toggleTarifaWeekday(day: number) {
+    setTarifaWeekdays((prev) => {
+      const next = new Set(prev);
+      if (next.has(day)) next.delete(day);
+      else next.add(day);
+      return next;
+    });
+  }
+
+  function computeTarifaDates(): string[] {
+    const dates = new Set<string>();
+    for (const r of tarifaRanges) {
+      if (!r.start || !r.end || r.start > r.end) continue;
+      let d = r.start;
+      while (d <= r.end) {
+        const weekday = (new Date(d + "T00:00:00").getDay() + 6) % 7;
+        if (tarifaWeekdays.size === 0 || tarifaWeekdays.has(weekday)) dates.add(d);
+        d = addDays(d, 1);
+      }
+    }
+    return Array.from(dates);
+  }
+
+  async function applyTarifa() {
+    if (!tarifaPlanId) {
+      setTarifaResult("Escolha uma tarifa.");
+      return;
+    }
+    const dates = computeTarifaDates();
+    if (dates.length === 0) {
+      setTarifaResult("Escolha pelo menos um intervalo de datas válido.");
+      return;
+    }
+    setTarifaApplying(true);
+    setTarifaResult(null);
+    try {
+      const res = await fetch("/api/backoffice/date-rate-plans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ratePlanId: tarifaPlanId, dates }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTarifaResult(data.error ?? "Erro ao aplicar tarifa.");
+      } else {
+        setRatePlanByDate((prev) => {
+          const next = { ...prev };
+          for (const d of dates) next[d] = tarifaPlanId;
+          return next;
+        });
+        setTarifaResult(`Tarifa aplicada a ${dates.length} dia(s).`);
+      }
+    } catch {
+      setTarifaResult("Erro de ligação ao aplicar tarifa.");
+    }
+    setTarifaApplying(false);
+  }
+
   function changeMonth(delta: number) {
     const d = new Date(viewYear, viewMonth + delta, 1);
     setLoading(true);
@@ -311,15 +409,27 @@ export default function Calendario() {
     <main className="max-w-5xl mx-auto p-8">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-semibold">Calendário</h1>
-        <button
-          onClick={() => {
-            setBulkOpen(true);
-            setBulkResult(null);
-          }}
-          className="bg-gray-900 text-white text-sm px-4 py-2 rounded"
-        >
-          Mudar preços em massa
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setTarifaOpen(true);
+              setTarifaResult(null);
+              setTarifaPlanId(ratePlans.find((p) => !p.isDefault)?.id ?? "");
+            }}
+            className="border border-gray-900 text-gray-900 text-sm px-4 py-2 rounded hover:bg-gray-50"
+          >
+            Aplicar tarifa
+          </button>
+          <button
+            onClick={() => {
+              setBulkOpen(true);
+              setBulkResult(null);
+            }}
+            className="bg-gray-900 text-white text-sm px-4 py-2 rounded"
+          >
+            Mudar preços em massa
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-4 mb-4">
@@ -375,6 +485,13 @@ export default function Calendario() {
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-2.5 h-2.5 rounded-full bg-orange-500" /> Feriado ES
         </span>
+        {ratePlans
+          .filter((p) => !p.isDefault)
+          .map((p) => (
+            <span key={p.id} className="flex items-center gap-1.5">
+              <span className="inline-block w-3 h-1.5 rounded-sm" style={{ backgroundColor: p.color }} /> Tarifa: {p.name}
+            </span>
+          ))}
       </div>
 
       {loading ? (
@@ -409,6 +526,8 @@ export default function Calendario() {
               const isToday = date === today;
               const price = date in prices ? prices[date] : defaultPrice;
               const holidays = holidaysByDate.get(date) ?? [];
+              const ratePlanId = ratePlanByDate[date];
+              const ratePlan = ratePlanId ? ratePlans.find((p) => p.id === ratePlanId) : undefined;
 
               const cellColor: CellColor | null = booking
                 ? SOURCE_COLOR[booking.source] ?? SOURCE_COLOR.outros
@@ -423,8 +542,15 @@ export default function Calendario() {
               return (
                 <div
                   key={date}
-                  className={`min-h-[90px] border-b border-r px-2 py-1.5 ${bg} ${inMonth ? "" : "opacity-40"}`}
+                  className={`relative min-h-[90px] border-b border-r px-2 py-1.5 ${bg} ${inMonth ? "" : "opacity-40"}`}
+                  title={ratePlan && !ratePlan.isDefault ? `Tarifa: ${ratePlan.name}` : undefined}
                 >
+                  {ratePlan && !ratePlan.isDefault && (
+                    <span
+                      className="absolute top-0 left-0 right-0 h-1"
+                      style={{ backgroundColor: ratePlan.color }}
+                    />
+                  )}
                   <div className="flex items-center justify-between">
                     <span className={`text-xs ${isToday ? "font-bold text-gray-900" : "text-gray-500"}`}>
                       {Number(date.slice(8, 10))}
@@ -576,6 +702,94 @@ export default function Calendario() {
               </p>
             )}
             {bulkResult && <p className="text-sm mt-2 text-gray-700">{bulkResult}</p>}
+          </div>
+        </div>
+      )}
+
+      {tarifaOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-20">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-medium">Aplicar tarifa</h2>
+              <button onClick={() => setTarifaOpen(false)} className="text-gray-400 hover:text-gray-700 text-xl leading-none">
+                ×
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-2">Tarifa a aplicar:</p>
+            <select
+              className="w-full border rounded px-3 py-2 mb-4"
+              value={tarifaPlanId}
+              onChange={(e) => setTarifaPlanId(e.target.value)}
+            >
+              {ratePlans.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+
+            <p className="text-sm text-gray-500 mb-3">Datas ou intervalos de datas a marcar com esta tarifa:</p>
+            <div className="space-y-2 mb-3">
+              {tarifaRanges.map((r) => (
+                <div key={r.id} className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    className="border rounded px-2 py-1.5 text-sm flex-1"
+                    value={r.start}
+                    onChange={(e) => updateTarifaRange(r.id, "start", e.target.value)}
+                  />
+                  <span className="text-gray-400 text-sm">a</span>
+                  <input
+                    type="date"
+                    className="border rounded px-2 py-1.5 text-sm flex-1"
+                    value={r.end}
+                    onChange={(e) => updateTarifaRange(r.id, "end", e.target.value)}
+                  />
+                  {tarifaRanges.length > 1 && (
+                    <button
+                      onClick={() => removeTarifaRange(r.id)}
+                      className="text-red-500 text-sm px-1 hover:bg-red-50 rounded"
+                      aria-label="Remover intervalo"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={addTarifaRange} className="text-sm border rounded px-3 py-1.5 hover:bg-gray-50 mb-4">
+              + Adicionar outro intervalo
+            </button>
+
+            <p className="text-sm text-gray-500 mb-2">
+              Dias da semana (deixe tudo por marcar para aplicar a todos os dias):
+            </p>
+            <div className="flex gap-1 mb-4 flex-wrap">
+              {WEEKDAY_LABELS.map((label, i) => (
+                <button
+                  key={label}
+                  onClick={() => toggleTarifaWeekday(i)}
+                  className={`px-3 py-1.5 rounded text-xs border ${
+                    tarifaWeekdays.has(i) ? "bg-gray-900 text-white border-gray-900" : "text-gray-600 hover:bg-gray-50"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={applyTarifa}
+              disabled={tarifaApplying}
+              className="w-full bg-gray-900 text-white rounded py-2.5 font-medium flex items-center justify-center gap-2 disabled:opacity-80"
+            >
+              {tarifaApplying && (
+                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              )}
+              {tarifaApplying ? "A aplicar..." : "Aplicar"}
+            </button>
+            {tarifaResult && <p className="text-sm mt-2 text-gray-700">{tarifaResult}</p>}
           </div>
         </div>
       )}
