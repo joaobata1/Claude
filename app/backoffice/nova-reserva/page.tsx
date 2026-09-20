@@ -466,9 +466,15 @@ export default function NovaReserva() {
       <section className="border-t mt-10 pt-8">
         <h2 className="text-lg font-medium mb-1">Importar reservas coladas do Excel</h2>
         <p className="text-sm text-gray-500 mb-3">
-          Copie as linhas da sua folha (com o cabeçalho: Nome, Contacto, Check in, Check Out, Adultos, Crianças,
-          Plataforma, RESERVA, Contacto, Valor, Comissão, Limpeza) e cole aqui. Estas reservas ficam registadas
-          mas <strong>não enviam código Nuki nem SMS/email automaticamente</strong> — use a reserva manual normal
+          Funciona com a <strong>exportação do Booking.com</strong> (Extranet → Reservas → exportar): abra o
+          ficheiro, selecione tudo (Ctrl+A), copie (Ctrl+C) e cole aqui — as colunas são reconhecidas sozinhas.
+          Também aceita a sua própria folha (cabeçalho: Nome, Contacto, Check in, Check Out, Adultos, Crianças,
+          Plataforma, RESERVA, Valor, Comissão, Limpeza).
+        </p>
+        <p className="text-sm text-gray-500 mb-3">
+          As <strong>reservas canceladas na plataforma são detetadas e não importadas</strong> — se entrassem,
+          bloqueavam no calendário noites que na verdade estão livres. Estas reservas ficam registadas mas{" "}
+          <strong>não enviam código Nuki nem SMS/email automaticamente</strong> — use a reserva manual normal
           acima se precisar de enviar a chave para alguma delas.
         </p>
         <textarea

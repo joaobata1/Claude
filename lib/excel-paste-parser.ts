@@ -29,18 +29,33 @@ const HEADER_ALIASES: Record<string, string> = {
   contacto: "guestPhone",
   checkin: "checkin",
   "check in": "checkin",
+  "check-in": "checkin",
   checkout: "checkout",
   "check out": "checkout",
+  "check-out": "checkout",
   adultos: "adults",
   criancas: "children",
-  crianças: "children",
   plataforma: "source",
   reserva: "bookingReference",
   valor: "totalPrice",
   comissao: "commissionAmount",
-  comissão: "commissionAmount",
   limpeza: "cleaningCost",
+  // Colunas da exportação oficial do Booking.com (Extranet → Reservas → exportar)
+  "numero da reserva": "bookingReference",
+  "nome do hospede": "guestName",
+  estado: "status",
+  pessoas: "people",
+  preco: "totalPrice",
+  "valor da comissao": "commissionAmount",
+  "numero de telefone": "guestPhone",
+  "booker country": "country",
 };
+
+/** Estados do Booking que não devem entrar no calendário. */
+function isCancelledStatus(raw: string): boolean {
+  const s = normalizeHeaderKey(raw);
+  return s.includes("cancel") || s.includes("no_show") || s.includes("no show");
+}
 
 function cleanText(raw: string | undefined): string {
   if (!raw) return "";
@@ -57,6 +72,15 @@ function normalizeHeaderKey(raw: string): string {
 
 function parsePtDate(raw: string): string | null {
   const cleaned = cleanText(raw);
+
+  // A exportação do Booking já traz as datas em YYYY-MM-DD (por vezes com hora a seguir).
+  const iso = cleaned.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    if (Number(m) >= 1 && Number(m) <= 12 && Number(d) >= 1 && Number(d) <= 31) return `${y}-${m}-${d}`;
+    return null;
+  }
+
   const match = cleaned.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (!match) return null;
   const [, d, m, y] = match;
@@ -66,12 +90,41 @@ function parsePtDate(raw: string): string | null {
   return `${y}-${month}-${day}`;
 }
 
+/**
+ * Lê um número que pode vir em formato português ("1.234,56"), inglês ("1,234.56")
+ * ou como o Booking.com o exporta ("425.65 EUR", "80.8735 EUR").
+ *
+ * A regra do último separador: se depois dele vierem exatamente 3 dígitos, era
+ * separador de milhares; caso contrário, é a vírgula decimal. Sem isto, "425.65 EUR"
+ * era lido como 42565 — cem vezes o valor real da reserva.
+ */
 function parsePtNumber(raw: string | undefined): number | null {
   const cleaned = cleanText(raw);
   if (!cleaned || cleaned === "-" || cleaned === "—") return null;
-  // formato português: ponto = separador de milhares, vírgula = decimal
-  const normalized = cleaned.replace(/\./g, "").replace(",", ".");
-  const n = parseFloat(normalized);
+
+  // tira moeda e espaços: "425.65 EUR" -> "425.65"
+  const semMoeda = cleaned.replace(/[^\d.,-]/g, "");
+  if (!semMoeda || !/\d/.test(semMoeda)) return null;
+
+  const ultimoPonto = semMoeda.lastIndexOf(".");
+  const ultimaVirgula = semMoeda.lastIndexOf(",");
+  const corte = Math.max(ultimoPonto, ultimaVirgula);
+
+  let normalizado: string;
+  if (corte === -1) {
+    normalizado = semMoeda;
+  } else {
+    const decimais = semMoeda.length - corte - 1;
+    if (decimais === 3) {
+      // separador de milhares (ex: "1.560" = mil quinhentos e sessenta)
+      normalizado = semMoeda.replace(/[.,]/g, "");
+    } else {
+      const inteiro = semMoeda.slice(0, corte).replace(/[.,]/g, "");
+      normalizado = `${inteiro}.${semMoeda.slice(corte + 1)}`;
+    }
+  }
+
+  const n = parseFloat(normalizado);
   return isNaN(n) ? null : n;
 }
 
@@ -95,10 +148,17 @@ export function parseExcelPaste(text: string): ParsedImportRow[] {
   const rows = splitRows(text);
   if (rows.length === 0) return [];
 
-  // deteta e ignora a linha de cabeçalho, se a primeira célula for "Nome"
-  const firstCellIsHeader = normalizeHeaderKey(rows[0][0] ?? "") === "nome";
+  // É cabeçalho se pelo menos duas células forem nomes de coluna conhecidos. Antes só
+  // reconhecia a folha do próprio utilizador (primeira célula "Nome"), pelo que o
+  // cabeçalho do Booking ("Número da reserva", ...) era tratado como uma reserva.
+  const knownInFirstRow = rows[0].filter((c) => HEADER_ALIASES[normalizeHeaderKey(c)]).length;
+  const firstCellIsHeader = knownInFirstRow >= 2;
   const headerRow = firstCellIsHeader ? rows[0] : null;
   const dataRows = firstCellIsHeader ? rows.slice(1) : rows;
+
+  // A exportação do Booking não tem coluna "Plataforma" — identifica-se pelas suas colunas.
+  const looksLikeBooking =
+    !!headerRow && headerRow.some((c) => normalizeHeaderKey(c) === "booker country");
 
   // mapeia nome de coluna -> índice; havendo colunas repetidas (ex: "Contacto" duas vezes), fica a última
   const columnIndex: Record<string, number> = {};
@@ -142,7 +202,15 @@ export function parseExcelPaste(text: string): ParsedImportRow[] {
 
     const adults = parseInt(cell(row, "adults"), 10) || 0;
     const children = parseInt(cell(row, "children"), 10) || 0;
-    const guestsCount = adults + children || 1;
+    const people = parseInt(cell(row, "people"), 10) || 0;
+    const guestsCount = people || adults + children || 1;
+
+    // A exportação inclui as reservas canceladas. Importá-las bloquearia no calendário
+    // datas que estão livres — noites que deixariam de poder ser vendidas.
+    const status = cell(row, "status");
+    if (status && isCancelledStatus(status)) {
+      errors.push(`Reserva cancelada na plataforma (${status}) — não é importada.`);
+    }
 
     return {
       raw: row,
@@ -151,7 +219,7 @@ export function parseExcelPaste(text: string): ParsedImportRow[] {
       checkin,
       checkout,
       guestsCount,
-      source: mapSource(cell(row, "source")),
+      source: looksLikeBooking ? "booking" : mapSource(cell(row, "source")),
       bookingReference: cell(row, "bookingReference"),
       totalPrice: parsePtNumber(cell(row, "totalPrice")),
       commissionAmount: parsePtNumber(cell(row, "commissionAmount")) ?? 0,

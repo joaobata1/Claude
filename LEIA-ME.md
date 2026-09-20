@@ -59,9 +59,20 @@ o raciocínio por trás de cada decisão.
     e os campos são pré-preenchidos (`lib/ai-vision.ts`, API da Anthropic)
   - Campos financeiros: preço total, comissão, custo de limpeza, nº de reserva
   - Botão WhatsApp direto para o hóspede
-  - **Importação em massa**: cole linhas copiadas do Excel e importe várias reservas de
-    uma vez (`lib/excel-paste-parser.ts`) — não envia código Nuki nem SMS/email
-    automaticamente, ao contrário do registo manual normal
+  - **Importação em massa** (`lib/excel-paste-parser.ts`): cole linhas copiadas do Excel e
+    importe várias reservas de uma vez — não envia código Nuki nem SMS/email
+    automaticamente, ao contrário do registo manual normal. Reconhece dois formatos:
+    - a **exportação oficial do Booking.com** (Extranet → Reservas → exportar), com as
+      colunas em português ("Número da reserva", "Nome do hóspede", "Check-in", ...);
+    - a folha própria do utilizador (Nome, Contacto, Check in, ...).
+    Dois cuidados que o ficheiro do Booking obriga: as **reservas canceladas vêm no
+    mesmo ficheiro** e são detetadas e excluídas (senão bloqueavam noites que estão
+    livres), e os **preços vêm como "425.65 EUR"**, com ponto decimal — o leitor de
+    números decide pelo último separador (3 dígitos a seguir = milhares, senão decimal),
+    para não transformar 425,65 € em 42 565 €
+  - **O que estas exportações não trazem**: o ficheiro do Booking traz nome, datas,
+    pessoas, preço, comissão e nº de reserva, mas as colunas de telefone e morada vêm
+    vazias — os contactos do hóspede continuam a ter de vir do formulário de hóspedes
 - **Fotos e conteúdo do site** (sub-separador "Site" nas Definições): foto de capa,
   galeria de fotos (Supabase Storage), descrição da casa e texto "Sobre nós" — tudo
   refletido de imediato no site público, sem precisar de novo deploy
