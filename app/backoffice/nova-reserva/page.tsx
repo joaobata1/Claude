@@ -6,6 +6,22 @@ import { parseExcelPaste, type ParsedImportRow } from "@/lib/excel-paste-parser"
 
 const SOURCE_LABEL: Record<string, string> = { airbnb: "Airbnb", booking: "Booking", vrbo: "VRBO", outros: "Outros" };
 
+/** Campos que a leitura por IA (screenshot ou email) pode devolver — todos opcionais. */
+interface ParsedBookingFields {
+  source?: string | null;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
+  checkin?: string | null;
+  checkout?: string | null;
+  guestsCount?: number | null;
+  totalPrice?: number | null;
+  commissionAmount?: number | null;
+  cleaningFee?: number | null;
+  bookingReference?: string | null;
+  emailType?: string | null;
+}
+
 export default function NovaReserva() {
   const [manual, setManual] = useState({
     source: "airbnb",
@@ -24,6 +40,11 @@ export default function NovaReserva() {
   const { guests, resize, update } = useGuestForm(manual.guestsCount);
   const [parsingImage, setParsingImage] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+
+  const [emailText, setEmailText] = useState("");
+  const [parsingEmail, setParsingEmail] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
 
   const [pasteText, setPasteText] = useState("");
   const [importPreview, setImportPreview] = useState<ParsedImportRow[] | null>(null);
@@ -106,26 +127,97 @@ export default function NovaReserva() {
         return;
       }
 
-      const newGuestsCount = data.guestsCount ?? manual.guestsCount;
-      setManual((prev) => ({
-        ...prev,
-        source: ["airbnb", "booking", "vrbo", "outros"].includes(data.source) ? data.source : prev.source,
-        guestName: data.guestName ?? prev.guestName,
-        guestEmail: data.guestEmail ?? prev.guestEmail,
-        guestPhone: data.guestPhone ?? prev.guestPhone,
-        checkin: data.checkin ?? prev.checkin,
-        checkout: data.checkout ?? prev.checkout,
-        guestsCount: newGuestsCount,
-        totalPrice: data.totalPrice != null ? String(data.totalPrice) : prev.totalPrice,
-        commissionAmount: data.commissionAmount != null ? String(data.commissionAmount) : prev.commissionAmount,
-        cleaningCost: data.cleaningFee != null ? String(data.cleaningFee) : prev.cleaningCost,
-        bookingReference: data.bookingReference ?? prev.bookingReference,
-      }));
-      resize(newGuestsCount);
+      applyParsedBooking(data);
     } catch {
       setParseError("Erro de ligação ao tentar ler a imagem.");
     }
     setParsingImage(false);
+  }
+
+  /**
+   * Preenche o formulário com o que foi lido.
+   *
+   * "merge" (screenshots): o que o leitor não encontrou fica como estava — uma screenshot
+   * mostra muitas vezes só parte da reserva (ex: só o resumo de rendimentos), e podem
+   * juntar-se duas para completar a mesma reserva.
+   *
+   * "replace" (email): o email é o registo completo de UMA reserva, por isso os campos que
+   * ele não traz são limpos. Sem isto, ler o email da Joana e a seguir o do Markus deixava
+   * o contacto da Joana agarrado à reserva do Markus — e o código da porta seguiria para a
+   * pessoa errada.
+   */
+  function applyParsedBooking(data: ParsedBookingFields, mode: "merge" | "replace" = "merge") {
+    const newGuestsCount = data.guestsCount ?? (mode === "replace" ? 1 : manual.guestsCount);
+    const keep = (novo: string | null | undefined, anterior: string) =>
+      novo ?? (mode === "replace" ? "" : anterior);
+    const keepNum = (novo: number | null | undefined, anterior: string) =>
+      novo != null ? String(novo) : mode === "replace" ? "" : anterior;
+
+    setManual((prev) => ({
+      ...prev,
+      source: data.source && ["airbnb", "booking", "vrbo", "outros"].includes(data.source) ? data.source : prev.source,
+      guestName: keep(data.guestName, prev.guestName),
+      guestEmail: keep(data.guestEmail, prev.guestEmail),
+      guestPhone: keep(data.guestPhone, prev.guestPhone),
+      checkin: keep(data.checkin, prev.checkin),
+      checkout: keep(data.checkout, prev.checkout),
+      guestsCount: newGuestsCount,
+      totalPrice: keepNum(data.totalPrice, prev.totalPrice),
+      commissionAmount: keepNum(data.commissionAmount, prev.commissionAmount),
+      cleaningCost: keepNum(data.cleaningFee, prev.cleaningCost),
+      bookingReference: keep(data.bookingReference, prev.bookingReference),
+    }));
+    resize(newGuestsCount);
+  }
+
+  async function handleBookingEmail() {
+    setEmailError(null);
+    setEmailNotice(null);
+    setParsingEmail(true);
+    try {
+      const res = await fetch("/api/backoffice/parse-booking-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: emailText }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEmailError(data.error ?? "Não foi possível ler o email.");
+        setParsingEmail(false);
+        return;
+      }
+
+      // Um cancelamento ou uma alteração não podem entrar como reserva nova sem aviso:
+      // criariam ou duplicariam um bloqueio de datas sem ninguém dar por isso.
+      if (data.emailType === "cancelamento") {
+        setEmailError(
+          "Este email é um CANCELAMENTO, não uma reserva nova. Os campos não foram preenchidos — cancele a reserva existente na página Reservas."
+        );
+        setParsingEmail(false);
+        return;
+      }
+      if (data.emailType === "alteracao") {
+        setEmailNotice(
+          "Atenção: este email é uma ALTERAÇÃO de uma reserva existente. Confirme os dados e, se a reserva já existir, edite-a em Reservas em vez de criar outra."
+        );
+      }
+
+      applyParsedBooking(data, "replace");
+
+      const emFalta = [
+        !data.guestEmail && "email",
+        !data.guestPhone && "telefone",
+        data.totalPrice == null && "preço",
+      ].filter(Boolean);
+      if (emFalta.length > 0 && !emailNotice) {
+        setEmailNotice(
+          `Dados preenchidos. A plataforma não incluiu no email: ${emFalta.join(", ")} — preencha à mão se precisar.`
+        );
+      }
+    } catch {
+      setEmailError("Erro de ligação ao tentar ler o email.");
+    }
+    setParsingEmail(false);
   }
 
   async function submitManualBooking() {
@@ -172,6 +264,45 @@ export default function NovaReserva() {
         contacto reais via API. Introduza aqui os dados assim que receber a notificação de reserva — o
         código Nuki é gerado automaticamente.
       </p>
+
+      <div className="border-2 border-dashed rounded-lg p-4 mb-4 bg-gray-50">
+        <p className="text-sm text-gray-600 mb-2">
+          <strong>Colar o email da reserva</strong> (Booking.com, Airbnb, VRBO) — abra o email, copie tudo
+          (Ctrl+A, Ctrl+C) e cole aqui. É mais fiável do que a screenshot.
+        </p>
+        <textarea
+          className="w-full border rounded px-3 py-2 h-28 text-sm font-mono"
+          placeholder="Cole aqui o texto do email recebido da plataforma..."
+          value={emailText}
+          onChange={(e) => setEmailText(e.target.value)}
+        />
+        <div className="flex items-center gap-3 mt-2">
+          <button
+            onClick={handleBookingEmail}
+            disabled={parsingEmail || emailText.trim().length < 20}
+            className="bg-gray-900 text-white text-sm px-4 py-2 rounded disabled:opacity-50"
+          >
+            {parsingEmail ? "A ler o email..." : "Ler email e preencher"}
+          </button>
+          {emailText && (
+            <button
+              onClick={() => {
+                setEmailText("");
+                setEmailError(null);
+                setEmailNotice(null);
+              }}
+              className="text-sm text-gray-500 underline"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+        {emailError && <p className="text-xs text-red-600 mt-2">{emailError}</p>}
+        {emailNotice && <p className="text-xs text-amber-700 mt-2">{emailNotice}</p>}
+        <p className="text-xs text-gray-400 mt-2">
+          Nada é gravado automaticamente: confirme os campos em baixo e carregue em registar.
+        </p>
+      </div>
 
       <div
         onPaste={(e) => {

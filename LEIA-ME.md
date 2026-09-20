@@ -44,6 +44,17 @@ o raciocínio por trás de cada decisão.
   **Tarifas**: botão "Aplicar tarifa" para atribuir uma tarifa a um intervalo de datas
   (com filtro de dias da semana), mostrada como uma barra colorida no topo do dia
 - **Nova reserva** (`/backoffice/nova-reserva`), para Airbnb/Booking/VRBO/Outros:
+  - **Colar o email da reserva**: copie o email recebido da plataforma e cole na caixa —
+    os campos são lidos e preenchidos (`parseBookingEmail` em `lib/ai-vision.ts`). Mais
+    fiável do que a screenshot, e traz campos que não cabem no ecrã (nº de reserva,
+    comissão, contactos). Nada é gravado sem confirmação. Notas:
+    - um email de **cancelamento** é detetado e recusado (não preenche nada); um de
+      **alteração** preenche mas avisa, para não se criar uma reserva duplicada;
+    - cada email substitui os campos por completo — ler dois emails seguidos nunca
+      deixa o contacto do hóspede anterior agarrado à reserva seguinte;
+    - a **Airbnb não envia email nem telemóvel** do hóspede (esconde-os de propósito):
+      esses campos ficam vazios e o sistema avisa. O Booking.com envia telefone e um
+      email `@guest.booking.com` que chega ao hóspede.
   - **Leitura automática por IA**: cole (Ctrl+V) ou carregue uma screenshot da reserva
     e os campos são pré-preenchidos (`lib/ai-vision.ts`, API da Anthropic)
   - Campos financeiros: preço total, comissão, custo de limpeza, nº de reserva
