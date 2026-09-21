@@ -231,10 +231,24 @@ export const SETTINGS_KEYS = [
   "automation_rules", // JSON: [{ id, type, daysOffset, relativeTo: 'checkin'|'checkout', enabled }]
 ] as const;
 
+/**
+ * Um campo deixado em branco chegava a ser gravado com o TEXTO "null" (por `String(null)`).
+ * Como "null" é um valor não-vazio, passava em todas as verificações de "está configurado?":
+ * uma chave de API assim dava um erro de autenticação confuso em vez de dizer que faltava,
+ * e um URL assim dava imagens partidas (`<img src="null">`) no site e nas partilhas.
+ * Normaliza-se na leitura para corrigir também o que já está gravado assim.
+ */
+function cleanSettingValue(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "null" || trimmed === "undefined") return null;
+  return value;
+}
+
 export async function getSetting(key: string): Promise<string | null> {
   await ensureSchema();
   const rows = await sql<{ value: string }[]>`SELECT value FROM settings WHERE key = ${key}`;
-  return rows[0]?.value ?? null;
+  return cleanSettingValue(rows[0]?.value);
 }
 
 /** Todas as definições guardadas, numa única query (ex: para preencher o formulário do backoffice). */
@@ -242,7 +256,10 @@ export async function getAllSettings(): Promise<Record<string, string>> {
   await ensureSchema();
   const rows = await sql<{ key: string; value: string }[]>`SELECT key, value FROM settings`;
   const map: Record<string, string> = {};
-  for (const row of rows) map[row.key] = row.value;
+  for (const row of rows) {
+    const clean = cleanSettingValue(row.value);
+    if (clean !== null) map[row.key] = clean;
+  }
   return map;
 }
 

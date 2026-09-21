@@ -22,7 +22,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   try {
     for (const key of SETTINGS_KEYS) {
-      if (key in body) await setSetting(key, String(body[key]));
+      if (!(key in body)) continue;
+      // Um campo em branco tem de ficar em branco: `String(null)` gravava o texto "null",
+      // que depois passava por um valor configurado (chave de API inválida, imagem partida).
+      const value = body[key];
+      await setSetting(key, value === null || value === undefined ? "" : String(value));
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
