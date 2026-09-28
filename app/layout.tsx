@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { getAllSettings } from "@/lib/db";
 import { getServerLocale } from "@/lib/i18n-server";
 import { getSiteUrl } from "@/lib/site-url";
@@ -39,7 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
       metadataBase: new URL(siteUrl),
       title: name,
       description,
-      icons: settings.favicon_url ? { icon: settings.favicon_url } : undefined,
+      // "apple" é o que o iPhone usa como ícone quando se adiciona ao ecrã principal.
+      icons: settings.favicon_url
+        ? { icon: settings.favicon_url, apple: settings.favicon_url }
+        : undefined,
+      appleWebApp: { capable: true, title: name, statusBarStyle: "default" },
       alternates: { canonical: "/" },
       openGraph: {
         title: name,
@@ -67,6 +71,13 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   }
 }
+
+export const viewport: Viewport = {
+  themeColor: "#111827",
+  // Instalada no ecrã principal, a app ocupa o ecrã todo, incluindo por baixo do
+  // entalhe e do indicador de início — daí as margens de segurança na navegação.
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

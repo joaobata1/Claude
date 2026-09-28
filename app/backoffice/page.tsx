@@ -523,12 +523,27 @@ export default function Backoffice() {
   const activeSection = SECTIONS.find((s) => s.id === section)!;
 
   return (
-    <main className="max-w-3xl mx-auto p-8">
+    <main className="max-w-3xl mx-auto px-5 py-6 sm:p-8">
       <h1 className="text-2xl font-semibold mb-6">Definições</h1>
 
-      {/* Quebra de linha em vez de deslocamento lateral: no telemóvel, os separadores que
-          ficavam fora do ecrã eram invisíveis — não havia forma de adivinhar que existiam. */}
-      <div className="flex flex-wrap gap-1 border-b mb-6">
+      {/* Telemóvel: uma lista pendente ocupa uma linha em vez de três de separadores.
+          Computador: os separadores, que aí cabem todos. */}
+      <div className="sm:hidden mb-6">
+        <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Secção</label>
+        <select
+          className="w-full border rounded-lg px-3 py-3 bg-white text-base"
+          value={section}
+          onChange={(e) => setSection(e.target.value)}
+        >
+          {SECTIONS.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="hidden sm:flex flex-wrap gap-1 border-b mb-6">
         {SECTIONS.map((s) => (
           <button
             key={s.id}

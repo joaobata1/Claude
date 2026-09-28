@@ -265,7 +265,7 @@ export default function BookingDetail() {
 
   if (loading)
     return (
-      <main className="max-w-4xl mx-auto p-8">
+      <main className="max-w-4xl mx-auto px-5 py-6 sm:p-8">
         <LoadingSpinner />
       </main>
     );
@@ -286,7 +286,7 @@ export default function BookingDetail() {
     );
   if (notFound || !booking)
     return (
-      <main className="max-w-4xl mx-auto p-8">
+      <main className="max-w-4xl mx-auto px-5 py-6 sm:p-8">
         <p className="text-red-600">Reserva não encontrada.</p>
         <button onClick={() => router.push("/backoffice/reservas")} className="mt-3 text-sm underline">
           ← Voltar à folha de reservas
@@ -295,7 +295,7 @@ export default function BookingDetail() {
     );
 
   return (
-    <main className="max-w-4xl mx-auto p-8">
+    <main className="max-w-4xl mx-auto px-5 py-6 sm:p-8">
       <button onClick={() => router.push("/backoffice/reservas")} className="text-sm text-gray-500 hover:underline mb-4">
         ← Folha de reservas
       </button>

@@ -28,7 +28,8 @@ const HYDRATION_WATCHDOG = `
 
 export default function BackofficeLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-50">
+    // pb-24 no telemóvel: a barra de navegação fica fixa em baixo e taparia o fim das páginas.
+    <div className="min-h-screen bg-gray-50 pb-24 sm:pb-0">
       <script dangerouslySetInnerHTML={{ __html: HYDRATION_WATCHDOG }} />
       <HydrationMarker />
       <BackofficeTabs />

@@ -402,7 +402,7 @@ export default function Calendario() {
   }
 
   return (
-    <main className="max-w-5xl mx-auto p-8">
+    <main className="max-w-5xl mx-auto px-5 py-6 sm:p-8">
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h1 className="text-2xl font-semibold">Calendário</h1>
         <div className="flex gap-2">

@@ -109,7 +109,7 @@ export default function Precos() {
   }
 
   return (
-    <main className="max-w-7xl mx-auto p-8">
+    <main className="max-w-7xl mx-auto px-5 py-6 sm:p-8">
       <h1 className="text-2xl font-semibold mb-1">Comparação de preços</h1>
       <p className="text-sm text-gray-500 mb-6">
         Introduza o preço que vê em cada canal — o valor líquido (já descontada a comissão configurada

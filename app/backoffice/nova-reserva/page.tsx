@@ -257,7 +257,7 @@ export default function NovaReserva() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto p-8">
+    <main className="max-w-2xl mx-auto px-5 py-6 sm:p-8">
       <h1 className="text-2xl font-semibold mb-1">Registar reserva manual</h1>
       <p className="text-sm text-gray-500 mb-6">
         Para reservas vindas do Airbnb, Booking, VRBO ou outra plataforma — estas não partilham dados de

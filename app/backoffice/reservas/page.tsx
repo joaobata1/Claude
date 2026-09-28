@@ -96,7 +96,7 @@ export default function Reservas() {
   }, [reloadToken]);
 
   return (
-    <main className="max-w-7xl mx-auto p-8">
+    <main className="max-w-7xl mx-auto px-5 py-6 sm:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Folha de reservas</h1>
         <a

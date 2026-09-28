@@ -94,7 +94,7 @@ export default function Limpeza() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto p-8">
+    <main className="max-w-3xl mx-auto px-5 py-6 sm:p-8">
       <h1 className="text-2xl font-semibold mb-1">Tabela de limpezas</h1>
       <p className="text-sm text-gray-500 mb-6">
         Resumo de reservas a partir de hoje, pronto a enviar para quem faz a limpeza.
