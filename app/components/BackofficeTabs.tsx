@@ -21,15 +21,17 @@ export default function BackofficeTabs() {
 
   return (
     <header className="border-b bg-white sticky top-0 z-10">
-      <div className="max-w-7xl mx-auto px-8 flex items-center justify-between">
-        <nav className="flex items-center gap-1 -mb-px overflow-x-auto">
+      <div className="max-w-7xl mx-auto px-4 sm:px-8 flex items-center justify-between gap-2 flex-wrap">
+        {/* Quebra de linha em vez de deslocamento lateral: no telemóvel os separadores da
+            direita ficavam escondidos fora do ecrã e sobrepunham-se ao botão de sair. */}
+        <nav className="flex flex-wrap items-center gap-1 -mb-px">
           {TABS.map((tab) => {
             const active = tab.href === "/backoffice" ? pathname === "/backoffice" : pathname.startsWith(tab.href);
             return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`whitespace-nowrap px-4 py-3 text-sm border-b-2 transition-colors ${
+                className={`whitespace-nowrap px-3 sm:px-4 py-3 text-sm border-b-2 transition-colors ${
                   active
                     ? "border-gray-900 text-gray-900 font-medium"
                     : "border-transparent text-gray-500 hover:text-gray-800"

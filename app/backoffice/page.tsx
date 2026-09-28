@@ -501,7 +501,9 @@ export default function Backoffice() {
     <main className="max-w-3xl mx-auto p-8">
       <h1 className="text-2xl font-semibold mb-6">Definições</h1>
 
-      <div className="flex gap-1 border-b mb-6 overflow-x-auto">
+      {/* Quebra de linha em vez de deslocamento lateral: no telemóvel, os separadores que
+          ficavam fora do ecrã eram invisíveis — não havia forma de adivinhar que existiam. */}
+      <div className="flex flex-wrap gap-1 border-b mb-6">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
