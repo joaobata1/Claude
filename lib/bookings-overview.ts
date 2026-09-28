@@ -87,9 +87,21 @@ function daysUntilNext(thisCheckout: string, allBookings: { checkin: string }[])
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
-export async function getBookingsOverview(): Promise<BookingOverviewRow[]> {
+/**
+ * Reservas para a folha de reservas, limpezas e calendário.
+ *
+ * As canceladas ficam de fora por omissão: continuam guardadas (para histórico e para
+ * se poderem reativar), mas não são trabalho a fazer — apareciam na folha e na lista de
+ * limpezas como se a estadia fosse acontecer.
+ */
+export async function getBookingsOverview(
+  opcoes: { incluirCanceladas?: boolean } = {}
+): Promise<BookingOverviewRow[]> {
   await ensureSchema();
-  const bookings = (await sql`SELECT * FROM bookings ORDER BY checkin ASC`) as any[];
+  const todas = (await sql`SELECT * FROM bookings ORDER BY checkin ASC`) as any[];
+  const bookings = opcoes.incluirCanceladas
+    ? todas
+    : todas.filter((b) => b.payment_status !== "cancelled");
 
   const bookingIds = bookings.map((b) => b.id);
   const allGuests =

@@ -58,19 +58,27 @@ function WhatsappButton({ phone }: { phone: string | null }) {
   );
 }
 
+/** "2026-08-18" -> "18/08/26": a folha tem muitas colunas e a data por extenso ocupava duas linhas. */
+function dataCurta(iso: string): string {
+  const [a, m, d] = iso.split("-");
+  return `${d}/${m}/${a.slice(2)}`;
+}
+
 export default function Reservas() {
   const router = useRouter();
   const [bookings, setBookings] = useState<BookingOverviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false);
+  const [aReativar, setAReativar] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
 
-    fetch("/api/backoffice/bookings", { signal: controller.signal })
+    fetch(`/api/backoffice/bookings${mostrarCanceladas ? "?canceladas=1" : ""}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
@@ -93,18 +101,51 @@ export default function Reservas() {
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [reloadToken]);
+  }, [reloadToken, mostrarCanceladas]);
+
+  /**
+   * Devolve a reserva ao estado normal da sua origem: as das plataformas não passam
+   * por pagamento no site ("não aplicável"), as do próprio site voltam a "pendente".
+   */
+  async function reativar(b: BookingOverviewRow) {
+    setAReativar(b.id);
+    const estado = b.source === "site" ? "pending" : "not_applicable";
+    try {
+      await fetch(`/api/backoffice/bookings/${b.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payment_status: estado }),
+      });
+      setReloadToken((t) => t + 1);
+    } catch {
+      setLoadError("Não foi possível reativar a reserva.");
+    }
+    setAReativar(null);
+  }
 
   return (
     <main className="max-w-7xl mx-auto px-5 py-6 sm:p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Folha de reservas</h1>
-        <a
-          href="/api/backoffice/export-bookings"
-          className="text-sm bg-gray-900 text-white rounded px-4 py-2 hover:bg-gray-800"
-        >
-          Exportar para Excel (CSV)
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setLoading(true);
+              setMostrarCanceladas((v) => !v);
+            }}
+            className={`text-sm rounded px-3 py-2 border ${
+              mostrarCanceladas ? "bg-gray-900 text-white border-gray-900" : "hover:bg-gray-50"
+            }`}
+          >
+            {mostrarCanceladas ? "Ocultar canceladas" : "Ver canceladas"}
+          </button>
+          <a
+            href="/api/backoffice/export-bookings"
+            className="text-sm bg-gray-900 text-white rounded px-3 py-2 hover:bg-gray-800"
+          >
+            Exportar (CSV)
+          </a>
+        </div>
       </div>
 
       <div className="flex items-center gap-6 text-xs text-gray-500 mb-4 flex-wrap">
@@ -134,26 +175,26 @@ export default function Reservas() {
         <p className="text-gray-500 text-sm">Ainda não há reservas registadas.</p>
       ) : (
         <div className="overflow-x-auto border rounded-lg">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+          <table className="w-full text-[13px]">
+            <thead className="bg-gray-50 text-gray-500 text-[11px] uppercase">
               <tr>
-                <th className="text-left px-4 py-3">Nº</th>
-                <th className="text-left px-4 py-3">Check-in</th>
-                <th className="text-left px-4 py-3">Check-out</th>
-                <th className="text-left px-4 py-3">Origem</th>
-                <th className="text-left px-4 py-3">Hóspede</th>
-                <th className="text-left px-4 py-3">Telefone</th>
-                <th className="text-left px-4 py-3">Nº pessoas</th>
-                <th className="text-right px-4 py-3">Preço total</th>
-                <th className="text-right px-4 py-3">Comissão</th>
-                <th className="text-right px-4 py-3">Limpeza</th>
-                <th className="text-right px-4 py-3">Total líquido</th>
-                <th className="text-center px-4 py-3">Pagamento</th>
-                <th className="text-center px-4 py-3">Dados SIBA</th>
-                <th className="text-center px-4 py-3">Submissão SIBA</th>
-                <th className="text-center px-4 py-3">Chaves enviadas</th>
-                <th className="text-center px-4 py-3">Limpeza</th>
-                <th className="text-center px-4 py-3">Contacto</th>
+                <th className="text-left px-2 py-2">Nº</th>
+                <th className="text-left px-2 py-2">Entrada</th>
+                <th className="text-left px-2 py-2">Saída</th>
+                <th className="text-left px-2 py-2">Origem</th>
+                <th className="text-left px-2 py-2">Hóspede</th>
+                <th className="text-left px-2 py-2 hidden lg:table-cell">Telefone</th>
+                <th className="text-center px-2 py-2" title="Número de pessoas">Pax</th>
+                <th className="text-right px-2 py-2">Total</th>
+                <th className="text-right px-2 py-2 hidden xl:table-cell">Comissão</th>
+                <th className="text-right px-2 py-2 hidden xl:table-cell">Limpeza</th>
+                <th className="text-right px-2 py-2">Líquido</th>
+                <th className="text-center px-1.5 py-2" title="Pagamento">Pag.</th>
+                <th className="text-center px-1.5 py-2" title="Dados dos hóspedes para o SIBA">SIBA</th>
+                <th className="text-center px-1.5 py-2" title="Submissão ao SIBA">Sub.</th>
+                <th className="text-center px-1.5 py-2" title="Chaves enviadas">Chav.</th>
+                <th className="text-center px-1.5 py-2" title="Limpeza no próprio dia">🧹</th>
+                <th className="text-center px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
@@ -161,26 +202,32 @@ export default function Reservas() {
                 <tr
                   key={b.id}
                   onClick={() => router.push(`/backoffice/reservas/${b.id}`)}
-                  className={`border-t cursor-pointer hover:bg-gray-50 ${b.requiresSameDayCleaning ? "bg-amber-50" : ""}`}
+                  className={`border-t cursor-pointer hover:bg-gray-50 ${
+                    b.paymentStatus === "cancelled"
+                      ? "bg-gray-50 text-gray-400"
+                      : b.requiresSameDayCleaning
+                      ? "bg-amber-50"
+                      : ""
+                  }`}
                 >
-                  <td className="px-4 py-3 text-gray-500">#{b.bookingNumber}</td>
-                  <td className="px-4 py-3">{b.checkin}</td>
-                  <td className="px-4 py-3">{b.checkout}</td>
-                  <td className="px-4 py-3">{SOURCE_LABEL[b.source] ?? b.source}</td>
-                  <td className="px-4 py-3">{b.guestName}</td>
-                  <td className="px-4 py-3 text-gray-500">{b.guestPhone ?? "—"}</td>
-                  <td className="px-4 py-3">{b.guestsCount}</td>
-                  <td className="px-4 py-3 text-right">{b.totalPrice != null ? `€${b.totalPrice.toFixed(2)}` : "—"}</td>
-                  <td className="px-4 py-3 text-right text-gray-500">
+                  <td className="px-2 py-2 text-gray-500">#{b.bookingNumber}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{dataCurta(b.checkin)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap">{dataCurta(b.checkout)}</td>
+                  <td className="px-2 py-2">{SOURCE_LABEL[b.source] ?? b.source}</td>
+                  <td className="px-2 py-2">{b.guestName}</td>
+                  <td className="px-2 py-2 text-gray-500 hidden lg:table-cell whitespace-nowrap">{b.guestPhone ?? "—"}</td>
+                  <td className="px-2 py-2 text-center">{b.guestsCount}</td>
+                  <td className="px-2 py-2 text-right">{b.totalPrice != null ? `€${b.totalPrice.toFixed(2)}` : "—"}</td>
+                  <td className="px-2 py-2 text-right text-gray-500 hidden xl:table-cell">
                     {b.commissionAmount > 0 ? `-€${b.commissionAmount.toFixed(2)}` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right text-gray-500">
+                  <td className="px-2 py-2 text-right text-gray-500 hidden xl:table-cell">
                     {b.cleaningCost > 0 ? `-€${b.cleaningCost.toFixed(2)}` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-right font-medium">
+                  <td className="px-2 py-2 text-right font-medium">
                     {b.netTotal != null ? `€${b.netTotal.toFixed(2)}` : "—"}
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-1.5 py-2 text-center">
                     <Dot
                       color={b.paymentSemaphore}
                       title={
@@ -194,13 +241,13 @@ export default function Reservas() {
                       }
                     />
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-1.5 py-2 text-center">
                     <Dot
                       color={b.sibaDataSemaphore}
                       title={`${b.guestsCompleteCount} de ${b.guestsCount} hóspedes com dados completos`}
                     />
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-1.5 py-2 text-center">
                     <Dot
                       color={b.sibaSubmissionSemaphore}
                       title={
@@ -212,10 +259,10 @@ export default function Reservas() {
                       }
                     />
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-1.5 py-2 text-center">
                     <Dot color={b.keysSentSemaphore} title={b.keysSentSemaphore === "green" ? "Código Nuki enviado" : "Código Nuki ainda não enviado"} />
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-2 py-2 text-center">
                     {b.requiresSameDayCleaning ? (
                       <span
                         title={
@@ -233,8 +280,18 @@ export default function Reservas() {
                       <span className="text-gray-300">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    <WhatsappButton phone={b.guestPhone} />
+                  <td className="px-2 py-2 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    {b.paymentStatus === "cancelled" ? (
+                      <button
+                        onClick={() => reativar(b)}
+                        disabled={aReativar === b.id}
+                        className="text-xs border border-gray-900 text-gray-900 rounded px-2 py-1 hover:bg-gray-900 hover:text-white disabled:opacity-50"
+                      >
+                        {aReativar === b.id ? "..." : "Reativar"}
+                      </button>
+                    ) : (
+                      <WhatsappButton phone={b.guestPhone} />
+                    )}
                   </td>
                 </tr>
               ))}
