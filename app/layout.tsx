@@ -34,15 +34,16 @@ export async function generateMetadata(): Promise<Metadata> {
     );
 
     const cover = settings.cover_photo_url;
+    // Sem favicon próprio carregado, usa-se o logótipo: é a mesma marca e evita
+    // que o browser e o ecrã principal do telemóvel fiquem com o ícone genérico.
+    const iconUrl = settings.favicon_url || settings.site_logo_url;
 
     return {
       metadataBase: new URL(siteUrl),
       title: name,
       description,
       // "apple" é o que o iPhone usa como ícone quando se adiciona ao ecrã principal.
-      icons: settings.favicon_url
-        ? { icon: settings.favicon_url, apple: settings.favicon_url }
-        : undefined,
+      icons: iconUrl ? { icon: iconUrl, apple: iconUrl } : undefined,
       appleWebApp: { capable: true, title: name, statusBarStyle: "default" },
       alternates: { canonical: "/" },
       openGraph: {

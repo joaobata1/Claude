@@ -1094,11 +1094,21 @@ export default function Backoffice() {
           </div>
 
           <div>
-            <h2 className="text-lg font-medium mb-1">Favicon (ícone do separador do browser)</h2>
-            <p className="text-sm text-gray-500 mb-3">Use uma imagem quadrada (ex: 512×512px) para melhor resultado.</p>
-            {settings.favicon_url && (
+            <h2 className="text-lg font-medium mb-1">Ícone (separador do browser e ecrã principal)</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              Se não carregar nada aqui, é usado o <strong>logótipo</strong>. Só vale a pena carregar um
+              ícone próprio se quiser uma versão quadrada, mais legível em tamanho pequeno (ex: 512×512px).
+            </p>
+            {(settings.favicon_url || settings.site_logo_url) && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={settings.favicon_url} alt="Favicon atual" className="w-10 h-10 object-contain rounded border mb-3" />
+              <img
+                src={settings.favicon_url || settings.site_logo_url}
+                alt={settings.favicon_url ? "Ícone atual" : "Logótipo, usado como ícone"}
+                className="w-10 h-10 object-contain rounded border mb-1 bg-gray-900 p-1"
+              />
+            )}
+            {!settings.favicon_url && settings.site_logo_url && (
+              <p className="text-xs text-gray-400 mb-3">A usar o logótipo.</p>
             )}
             <input
               type="file"
