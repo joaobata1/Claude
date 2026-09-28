@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { COOKIE_NAME, SESSION_MAX_AGE_SECONDS, createSessionToken, timingSafeEqual } from "@/lib/auth";
+import { clientIp, estadoDeTravagem, registarFalha, limparTentativas } from "@/lib/login-throttle";
+
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -13,9 +16,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Há uma só palavra-passe a proteger tudo: sem um limite de tentativas, podia ser
+  // adivinhada por força bruta sem qualquer travão.
+  const ip = clientIp(req);
+  const travagem = await estadoDeTravagem(ip);
+  if (travagem.bloqueado) {
+    return NextResponse.json(
+      {
+        error: `Demasiadas tentativas falhadas. Aguarde ${travagem.minutosEmFalta} minuto(s) e tente novamente.`,
+      },
+      { status: 429 }
+    );
+  }
+
   if (!password || !timingSafeEqual(password, expected)) {
+    await registarFalha(ip);
     return NextResponse.json({ error: "Palavra-passe incorreta." }, { status: 401 });
   }
+
+  await limparTentativas(ip);
 
   const token = await createSessionToken();
   const res = NextResponse.json({ ok: true });

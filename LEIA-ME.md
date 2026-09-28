@@ -139,6 +139,12 @@ o raciocínio por trás de cada decisão.
   maxDuration` explícito — sem isto, o plano Hobby da Vercel corta a função aos 10s por
   omissão, o que podia mostrar uma página em branco/presa a carregar se o Supabase
   demorasse a responder (ex: a acordar de uma pausa por inatividade)
+- **Limite de tentativas no login** (`lib/login-throttle.ts`): 8 tentativas falhadas por
+  IP em 15 minutos e o endereço fica travado. O registo é guardado na base de dados e
+  não em memória, porque na Vercel cada pedido pode cair numa instância diferente — um
+  contador em memória não travaria nada. Se a base de dados estiver inacessível, a
+  travagem deixa passar de propósito (a palavra-passe continua a ser verificada): mais
+  vale perder a travagem do que ficar sem conseguir entrar no backoffice
 
 ---
 

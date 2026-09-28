@@ -21,7 +21,7 @@ let schemaReady: Promise<void> | null = null;
  * Subir este número sempre que `initSchema()` mudar (nova tabela/coluna) — é isso que
  * faz a migração correr outra vez. Sem isto, a alteração nunca chegaria à base de dados.
  */
-const SCHEMA_VERSION = "3";
+const SCHEMA_VERSION = "4";
 
 /** Garante que as tabelas e colunas existem. Idempotente e memorizado — seguro chamar em cada pedido. */
 export function ensureSchema(): Promise<void> {
@@ -130,6 +130,15 @@ async function initSchema() {
       rate_plan_id TEXT NOT NULL
     )
   `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS login_attempts (
+      id TEXT PRIMARY KEY,
+      ip TEXT NOT NULL,
+      attempted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS login_attempts_ip_time ON login_attempts (ip, attempted_at)`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS message_templates (
