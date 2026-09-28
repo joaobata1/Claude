@@ -61,13 +61,45 @@ export async function sendNukiCodeBySms(params: {
   return { sent: true };
 }
 
+/**
+ * Traduz os erros mais comuns do Resend para algo acionável.
+ * Sem isto, o backoffice mostrava o JSON cru da API.
+ */
+function explainResendError(status: number, body: string): string {
+  const lower = body.toLowerCase();
+  if (status === 401 || status === 403 || lower.includes("api key")) {
+    return "A chave do Resend é inválida (Definições → SMS & Email).";
+  }
+  if (lower.includes("domain is not verified") || lower.includes("not verified") || lower.includes("domain")) {
+    return (
+      "O domínio do email de envio ainda não está verificado no Resend. " +
+      "No Resend: Domains → Add Domain → adicione os registos DNS que ele indicar no seu registador, " +
+      "e espere que fique 'Verified'."
+    );
+  }
+  if (lower.includes("from")) {
+    return "O endereço de envio não é aceite pelo Resend. Use um endereço do domínio verificado.";
+  }
+  return `Falha no envio (${status}): ${body.slice(0, 200)}`;
+}
+
+/** Endereço de envio configurado no backoffice. Sem ele não se envia nada. */
+async function getFromEmail(): Promise<string | null> {
+  // Não há valor por omissão: um domínio escrito no código seria um domínio que não é
+  // seu, e o Resend recusaria o envio com um erro difícil de perceber.
+  return getSetting("notification_from_email");
+}
+
 /** Envio de email genérico (usado pelas mensagens de chaves/instruções/personalizadas) */
 export async function sendGenericEmail(params: { to: string; subject: string; text: string }) {
   const apiKey = await getSetting("resend_api_key");
-  const fromEmail = (await getSetting("notification_from_email")) || "reservas@aljezurmonteclerigo.pt";
+  const fromEmail = await getFromEmail();
 
   if (!apiKey) {
-    return { sent: false, reason: "not_configured" };
+    return { sent: false, reason: "Chave do Resend não configurada (Definições → SMS & Email)." };
+  }
+  if (!fromEmail) {
+    return { sent: false, reason: "Falta o email de envio (Definições → SMS & Email)." };
   }
   if (!params.to) {
     return { sent: false, reason: "no_email" };
@@ -90,7 +122,7 @@ export async function sendGenericEmail(params: { to: string; subject: string; te
   if (!res.ok) {
     const errText = await res.text();
     console.error("Falha ao enviar email Resend:", errText);
-    return { sent: false, reason: errText };
+    return { sent: false, reason: explainResendError(res.status, errText) };
   }
 
   return { sent: true };
@@ -104,11 +136,15 @@ export async function sendNukiCodeByEmail(params: {
   nukiCode: string;
 }) {
   const apiKey = await getSetting("resend_api_key");
-  const fromEmail = (await getSetting("notification_from_email")) || "reservas@aljezurmonteclerigo.pt";
+  const fromEmail = await getFromEmail();
 
   if (!apiKey) {
     console.warn("Resend não configurado no backoffice — email não enviado.");
     return { sent: false, reason: "not_configured" };
+  }
+  if (!fromEmail) {
+    console.warn("Email de envio não configurado no backoffice — email não enviado.");
+    return { sent: false, reason: "no_from_email" };
   }
   if (!params.guestEmail) {
     return { sent: false, reason: "no_email" };
@@ -133,7 +169,7 @@ export async function sendNukiCodeByEmail(params: {
   if (!res.ok) {
     const errText = await res.text();
     console.error("Falha ao enviar email Resend:", errText);
-    return { sent: false, reason: errText };
+    return { sent: false, reason: explainResendError(res.status, errText) };
   }
 
   return { sent: true };

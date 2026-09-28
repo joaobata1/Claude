@@ -162,6 +162,10 @@ export default function Backoffice() {
   const [contentLang, setContentLang] = useState<"pt" | "en" | "de">("pt");
   const [fees, setFees] = useState<{ id: string; name: string; value: number; type: "fixed" | "percent" }[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([DEFAULT_RATE_PLAN]);
+  const [testEmailTo, setTestEmailTo] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
+  const [testEmailOk, setTestEmailOk] = useState(false);
 
   useEffect(() => {
     fetch("/api/backoffice/settings")
@@ -416,6 +420,29 @@ export default function Backoffice() {
 
   function removeAutomationRule(id: string) {
     setAutomationRules((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  async function sendTestEmail() {
+    setSendingTest(true);
+    setTestEmailResult(null);
+    try {
+      const res = await fetch("/api/backoffice/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: testEmailTo }),
+      });
+      const data = await res.json();
+      setTestEmailOk(res.ok);
+      setTestEmailResult(
+        res.ok
+          ? `Email enviado de ${data.remetente} para ${data.destino}. Confirme a caixa de entrada (e o spam).`
+          : data.error ?? "Não foi possível enviar."
+      );
+    } catch {
+      setTestEmailOk(false);
+      setTestEmailResult("Erro de ligação ao tentar enviar.");
+    }
+    setSendingTest(false);
   }
 
   async function saveSettings() {
@@ -1143,6 +1170,36 @@ export default function Backoffice() {
               );
             })}
           </div>
+        </section>
+      )}
+
+      {section === "notificacoes" && (
+        <section className="border-t mt-8 pt-6">
+          <h2 className="text-lg font-medium mb-1">Testar o envio de email</h2>
+          <p className="text-sm text-gray-500 mb-3">
+            O remetente é o campo <strong>&quot;Email de envio&quot;</strong> aqui em cima — não se muda no
+            Resend. No Resend só tem de <strong>verificar o domínio</strong> (Domains → Add Domain → juntar
+            os registos DNS que ele indicar no registador do domínio). Guarde as definições antes de testar.
+          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input
+              type="email"
+              className="flex-1 min-w-[220px] border rounded px-3 py-2"
+              placeholder="enviar teste para... (o seu email)"
+              value={testEmailTo}
+              onChange={(e) => setTestEmailTo(e.target.value)}
+            />
+            <button
+              onClick={sendTestEmail}
+              disabled={sendingTest || !testEmailTo.includes("@")}
+              className="bg-gray-900 text-white text-sm px-4 py-2 rounded disabled:opacity-50"
+            >
+              {sendingTest ? "A enviar..." : "Enviar email de teste"}
+            </button>
+          </div>
+          {testEmailResult && (
+            <p className={`text-sm mt-3 ${testEmailOk ? "text-green-700" : "text-red-600"}`}>{testEmailResult}</p>
+          )}
         </section>
       )}
 
