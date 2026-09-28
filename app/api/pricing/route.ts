@@ -8,9 +8,10 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const checkin = searchParams.get("checkin");
   const checkout = searchParams.get("checkout");
+  const guests = Number(searchParams.get("guests")) || undefined;
   if (!checkin || !checkout || checkin >= checkout) {
     return NextResponse.json({ error: "Indique checkin e checkout válidos." }, { status: 400 });
   }
-  const breakdown = await calculateBookingPrice(checkin, checkout);
+  const breakdown = await calculateBookingPrice(checkin, checkout, guests);
   return NextResponse.json(breakdown);
 }

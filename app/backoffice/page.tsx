@@ -162,6 +162,11 @@ export default function Backoffice() {
   const [contentLang, setContentLang] = useState<"pt" | "en" | "de">("pt");
   const [fees, setFees] = useState<{ id: string; name: string; value: number; type: "fixed" | "percent" }[]>([]);
   const [ratePlans, setRatePlans] = useState<RatePlan[]>([DEFAULT_RATE_PLAN]);
+  const [occupancy, setOccupancy] = useState<{ maxGuests: string; value: string; type: "fixed_per_night" | "percent" }>({
+    maxGuests: "",
+    value: "",
+    type: "fixed_per_night",
+  });
   const [testEmailTo, setTestEmailTo] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
   const [testEmailResult, setTestEmailResult] = useState<string | null>(null);
@@ -187,6 +192,18 @@ export default function Backoffice() {
           }
         } catch {
           setFees([]);
+        }
+        try {
+          const oc = data.occupancy_discount ? JSON.parse(data.occupancy_discount) : null;
+          if (oc) {
+            setOccupancy({
+              maxGuests: String(oc.maxGuests ?? ""),
+              value: String(oc.value ?? ""),
+              type: oc.type === "percent" ? "percent" : "fixed_per_night",
+            });
+          }
+        } catch {
+          // definição inválida: fica o formulário vazio
         }
         try {
           const parsed = data.rate_plans ? JSON.parse(data.rate_plans) : null;
@@ -458,6 +475,14 @@ export default function Backoffice() {
           automation_rules: JSON.stringify(automationRules),
           fees_config: JSON.stringify(fees),
           rate_plans: JSON.stringify(ratePlans),
+          occupancy_discount:
+            occupancy.maxGuests && occupancy.value
+              ? JSON.stringify({
+                  maxGuests: Number(occupancy.maxGuests),
+                  value: Number(occupancy.value),
+                  type: occupancy.type,
+                })
+              : "",
         }),
       });
       if (!res.ok) {
@@ -811,6 +836,57 @@ export default function Backoffice() {
             <button onClick={addFee} className="mt-3 text-sm border rounded px-3 py-2 hover:bg-gray-50">
               + Adicionar taxa
             </button>
+          </div>
+
+          <div className="border-t pt-6">
+            <h2 className="text-lg font-medium mb-1">Desconto por ocupação</h2>
+            <p className="text-sm text-gray-500 mb-3">
+              O preço por noite é o da casa cheia. Aqui define um desconto para quando vêm menos hóspedes
+              (ex: até 2 pessoas, menos 20 € por noite). Deixe em branco para desligar.
+            </p>
+            <div className="flex items-end gap-2 flex-wrap">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Até quantos hóspedes</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="ex: 2"
+                  className="w-32 border rounded px-3 py-2 text-sm"
+                  value={occupancy.maxGuests}
+                  onChange={(e) => setOccupancy({ ...occupancy, maxGuests: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Desconto</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.5}
+                  placeholder="ex: 20"
+                  className="w-32 border rounded px-3 py-2 text-sm"
+                  value={occupancy.value}
+                  onChange={(e) => setOccupancy({ ...occupancy, value: e.target.value })}
+                />
+              </div>
+              <select
+                className="border rounded px-2 py-2 text-sm"
+                value={occupancy.type}
+                onChange={(e) =>
+                  setOccupancy({ ...occupancy, type: e.target.value as "fixed_per_night" | "percent" })
+                }
+              >
+                <option value="fixed_per_night">€ por noite</option>
+                <option value="percent">% do total das noites</option>
+              </select>
+              {(occupancy.maxGuests || occupancy.value) && (
+                <button
+                  onClick={() => setOccupancy({ maxGuests: "", value: "", type: "fixed_per_night" })}
+                  className="text-sm text-gray-500 underline py-2"
+                >
+                  Desligar
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="border-t pt-6">

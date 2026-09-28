@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   // Soma o preço de cada noite (o próprio do dia, se definido no calendário, senão o
   // preço por omissão) + as taxas configuradas no backoffice — nunca um preço fixo.
-  const priceBreakdown = await calculateBookingPrice(checkin, checkout);
+  const priceBreakdown = await calculateBookingPrice(checkin, checkout, Number(guestsCount) || 1);
   const total = priceBreakdown.total;
   const feesTotal = priceBreakdown.fees.reduce((sum, f) => sum + f.amount, 0);
 

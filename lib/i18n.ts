@@ -49,6 +49,9 @@ interface Dict {
     heading: string;
     datesUnavailable: string;
     datesAvailable: string;
+    occupancyDiscountNotice: string;
+    backToSite: string;
+    guestsHint: string;
     invalidDateRange: string;
     priceUnavailable: string;
     checkingAvailability: string;
@@ -148,6 +151,9 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Reservar",
       datesUnavailable: "Essas datas já não estão disponíveis. Escolha outro intervalo.",
       datesAvailable: "Datas disponíveis!",
+      occupancyDiscountNotice: "Desconto por ser até {guests} hóspedes.",
+      backToSite: "Voltar",
+      guestsHint: "O preço depende do número de hóspedes.",
       invalidDateRange: "A data de saída tem de ser posterior à data de entrada.",
       priceUnavailable: "Não foi possível calcular o preço para estas datas. Tente outras datas.",
       checkingAvailability: "A verificar...",
@@ -245,6 +251,9 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Book",
       datesUnavailable: "Those dates are no longer available. Please choose another range.",
       datesAvailable: "Dates available!",
+      occupancyDiscountNotice: "Discount for up to {guests} guests.",
+      backToSite: "Back",
+      guestsHint: "The price depends on the number of guests.",
       invalidDateRange: "The check-out date must be after the check-in date.",
       priceUnavailable: "We could not work out a price for these dates. Please try different dates.",
       checkingAvailability: "Checking...",
@@ -342,6 +351,9 @@ const dictionaries: Record<Locale, Dict> = {
       heading: "Buchen",
       datesUnavailable: "Diese Termine sind nicht mehr verfügbar. Bitte wählen Sie einen anderen Zeitraum.",
       datesAvailable: "Termine verfügbar!",
+      occupancyDiscountNotice: "Rabatt für bis zu {guests} Gäste.",
+      backToSite: "Zurück",
+      guestsHint: "Der Preis hängt von der Gästezahl ab.",
       invalidDateRange: "Das Abreisedatum muss nach dem Anreisedatum liegen.",
       priceUnavailable: "Für diese Termine konnte kein Preis ermittelt werden. Bitte andere Termine wählen.",
       checkingAvailability: "Wird geprüft...",

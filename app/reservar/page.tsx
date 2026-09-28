@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import GuestForm, { useGuestForm } from "@/app/components/GuestForm";
 import LanguageSwitcher from "@/app/components/LanguageSwitcher";
@@ -9,6 +10,7 @@ import { getDictionary, interpolate } from "@/lib/i18n";
 import { todayISO, addDaysISO } from "@/lib/dates";
 
 const STORAGE_KEY = "aljezur-reserva-em-curso";
+const MAX_GUESTS = 6;
 
 interface StoredState {
   step: "datas" | "hospedes" | "confirmado";
@@ -133,7 +135,7 @@ function Reservar() {
 
   const datesUnavailable = rangeOverlapsBlocked(checkin, checkout, blockedDates);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
-  const [checkedDates, setCheckedDates] = useState<{ checkin: string; checkout: string } | null>(null);
+  const [checkedDates, setCheckedDates] = useState<{ checkin: string; checkout: string; guests: number } | null>(null);
   const [priceFailed, setPriceFailed] = useState(false);
   const [priceBreakdown, setPriceBreakdown] = useState<{
     nights: number;
@@ -145,11 +147,18 @@ function Reservar() {
     minNights: number | null;
     maxNights: number | null;
     cancellationDays: number | null;
+    occupancyDiscountAmount: number;
+    occupancyMaxGuests: number | null;
   } | null>(null);
 
   // Um resultado só é válido para as datas exatas com que foi pedido — assim que o
   // hóspede muda check-in/check-out, deixa de corresponder, sem precisar de um efeito.
-  const availabilityChecked = checkedDates?.checkin === checkin && checkedDates?.checkout === checkout;
+  // Inclui o número de hóspedes: como ele altera o preço, mudá-lo invalida o resultado
+  // anterior e obriga a verificar de novo — nunca se mostra um preço de outra ocupação.
+  const availabilityChecked =
+    checkedDates?.checkin === checkin &&
+    checkedDates?.checkout === checkout &&
+    checkedDates?.guests === guestsCount;
 
   // Saída anterior (ou igual) à entrada não é um intervalo: sem isto, a procura de datas
   // ocupadas não percorria noite nenhuma, dava "livre", e o ecrã anunciava datas
@@ -160,6 +169,12 @@ function Reservar() {
     !!priceBreakdown &&
     ((priceBreakdown.minNights != null && priceBreakdown.nights < priceBreakdown.minNights) ||
       (priceBreakdown.maxNights != null && priceBreakdown.nights > priceBreakdown.maxNights));
+
+  function changeGuests(value: number) {
+    const n = Math.min(MAX_GUESTS, Math.max(1, Number.isFinite(value) ? value : 1));
+    setGuestsCount(n);
+    resize(n);
+  }
 
   /** Mantém a saída sempre depois da entrada, empurrando-a uma noite se for preciso. */
   function changeCheckin(value: string) {
@@ -174,20 +189,23 @@ function Reservar() {
     setPriceFailed(false);
     const requestedCheckin = checkin;
     const requestedCheckout = checkout;
+    const requestedGuests = guestsCount;
     try {
       const res = await fetch("/api/availability");
       const data = await res.json();
       const nextBlocked = new Set<string>(data.blockedDates ?? []);
       setBlockedDates(nextBlocked);
       if (!rangeOverlapsBlocked(requestedCheckin, requestedCheckout, nextBlocked)) {
-        const priceRes = await fetch(`/api/pricing?checkin=${requestedCheckin}&checkout=${requestedCheckout}`);
+        const priceRes = await fetch(
+          `/api/pricing?checkin=${requestedCheckin}&checkout=${requestedCheckout}&guests=${requestedGuests}`
+        );
         if (priceRes.ok) setPriceBreakdown(await priceRes.json());
         else setPriceFailed(true);
       }
     } catch {
       setPriceFailed(true);
     }
-    setCheckedDates({ checkin: requestedCheckin, checkout: requestedCheckout });
+    setCheckedDates({ checkin: requestedCheckin, checkout: requestedCheckout, guests: requestedGuests });
     setCheckingAvailability(false);
   }
 
@@ -268,61 +286,120 @@ function Reservar() {
   }
 
   return (
-    <main className="max-w-lg mx-auto p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">
-          {t.heading} — {siteName}
-        </h1>
+    <main className="max-w-lg mx-auto px-5 py-8">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          <span aria-hidden>←</span> {t.backToSite}
+        </Link>
         <LanguageSwitcher active={locale} onChange={setLocale} />
       </div>
+      <h1 className="text-2xl font-semibold mb-1">{t.heading}</h1>
+      <p className="text-sm text-gray-500 mb-6">{siteName}</p>
 
       {step === "datas" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">{getDictionary(locale).widget.checkin}</label>
-              <input
-                type="date"
-                className="w-full border rounded px-3 py-2"
-                value={checkin}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => changeCheckin(e.target.value)}
-              />
+        <div className="space-y-5">
+          <section className="rounded-xl border bg-white p-4 shadow-sm space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                  {getDictionary(locale).widget.checkin}
+                </label>
+                <input
+                  type="date"
+                  className="w-full border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
+                  value={checkin}
+                  min={todayISO()}
+                  onChange={(e) => changeCheckin(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                  {getDictionary(locale).widget.checkout}
+                </label>
+                <input
+                  type="date"
+                  className="w-full border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10 focus:border-gray-400"
+                  value={checkout}
+                  min={checkin ? nextDay(checkin) : todayISO()}
+                  onChange={(e) => setCheckout(e.target.value)}
+                />
+              </div>
             </div>
+
+            {/* Os hóspedes vêm ANTES do preço: o valor por noite é o da casa cheia e há
+                desconto para menos gente, por isso o preço não faz sentido sem este número. */}
             <div>
-              <label className="block text-sm text-gray-600 mb-1">{getDictionary(locale).widget.checkout}</label>
-              <input
-                type="date"
-                className="w-full border rounded px-3 py-2"
-                value={checkout}
-                min={checkin ? nextDay(checkin) : new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setCheckout(e.target.value)}
-              />
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                {t.guestsCount}
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => changeGuests(guestsCount - 1)}
+                  disabled={guestsCount <= 1}
+                  aria-label="Menos um hóspede"
+                  className="w-11 h-11 shrink-0 rounded-lg border text-lg hover:bg-gray-50 disabled:opacity-40"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_GUESTS}
+                  className="flex-1 text-center border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                  value={guestsCount}
+                  onChange={(e) => changeGuests(Number(e.target.value))}
+                />
+                <button
+                  type="button"
+                  onClick={() => changeGuests(guestsCount + 1)}
+                  disabled={guestsCount >= MAX_GUESTS}
+                  aria-label="Mais um hóspede"
+                  className="w-11 h-11 shrink-0 rounded-lg border text-lg hover:bg-gray-50 disabled:opacity-40"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1.5">{t.guestsHint}</p>
             </div>
-          </div>
 
-          <button
-            onClick={checkAvailability}
-            disabled={checkingAvailability || !checkin || !checkout || invalidRange}
-            className="w-full border rounded py-2 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
-          >
-            {checkingAvailability ? t.checkingAvailability : getDictionary(locale).widget.checkAvailability}
-          </button>
+            <button
+              onClick={checkAvailability}
+              disabled={checkingAvailability || !checkin || !checkout || invalidRange}
+              className="w-full bg-gray-900 text-white rounded-lg py-3 text-sm font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
+            >
+              {checkingAvailability ? t.checkingAvailability : getDictionary(locale).widget.checkAvailability}
+            </button>
 
-          {invalidRange && <p className="text-red-600 text-sm">{t.invalidDateRange}</p>}
-          {!invalidRange && datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
-          {!invalidRange && availabilityChecked && !datesUnavailable && priceFailed && (
-            <p className="text-red-600 text-sm">{t.priceUnavailable}</p>
-          )}
+            {invalidRange && <p className="text-red-600 text-sm">{t.invalidDateRange}</p>}
+            {!invalidRange && datesUnavailable && <p className="text-red-600 text-sm">{t.datesUnavailable}</p>}
+            {!invalidRange && availabilityChecked && !datesUnavailable && priceFailed && (
+              <p className="text-red-600 text-sm">{t.priceUnavailable}</p>
+            )}
+          </section>
+
           {!invalidRange && availabilityChecked && !datesUnavailable && !priceFailed && (
-            <div className="border rounded-lg p-3 bg-green-50 border-green-200">
-              <p className="text-green-600 text-sm font-medium mb-2">{t.datesAvailable}</p>
+            <section className="rounded-xl border border-green-200 bg-green-50/70 p-4">
+              <p className="text-green-700 text-sm font-medium mb-3 flex items-center gap-1.5">
+                <span aria-hidden>✓</span> {t.datesAvailable}
+              </p>
               {priceBreakdown && (
-                <div className="text-sm text-gray-700 space-y-1">
+                <div className="text-sm text-gray-700 space-y-1.5">
                   <div className="flex justify-between">
                     <span>{interpolate(t.nightsLabel, { nights: priceBreakdown.nights })}</span>
-                    <span>€{priceBreakdown.nightsSubtotal.toFixed(2)}</span>
+                    <span className="tabular-nums">€{priceBreakdown.nightsSubtotal.toFixed(2)}</span>
                   </div>
+                  {priceBreakdown.occupancyDiscountAmount > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>
+                        {interpolate(t.occupancyDiscountNotice, { guests: priceBreakdown.occupancyMaxGuests ?? 0 })}
+                      </span>
+                      <span className="tabular-nums">−€{priceBreakdown.occupancyDiscountAmount.toFixed(2)}</span>
+                    </div>
+                  )}
                   {priceBreakdown.discountPercent && (
                     <div className="flex justify-between text-green-700">
                       <span>
@@ -331,18 +408,18 @@ function Reservar() {
                           { percent: priceBreakdown.discountPercent }
                         )}
                       </span>
-                      <span>-€{priceBreakdown.discountAmount.toFixed(2)}</span>
+                      <span className="tabular-nums">−€{priceBreakdown.discountAmount.toFixed(2)}</span>
                     </div>
                   )}
                   {priceBreakdown.fees.map((f) => (
                     <div key={f.id} className="flex justify-between text-gray-500">
                       <span>{f.name}</span>
-                      <span>€{f.amount.toFixed(2)}</span>
+                      <span className="tabular-nums">€{f.amount.toFixed(2)}</span>
                     </div>
                   ))}
-                  <div className="flex justify-between font-medium border-t pt-1 mt-1">
+                  <div className="flex justify-between font-semibold text-base text-gray-900 border-t border-green-200 pt-2 mt-2">
                     <span>{t.totalLabel}</span>
-                    <span>€{priceBreakdown.total.toFixed(2)}</span>
+                    <span className="tabular-nums">€{priceBreakdown.total.toFixed(2)}</span>
                   </div>
                   {priceBreakdown.cancellationDays != null && (
                     <p className="text-xs text-gray-500 pt-1">
@@ -358,57 +435,66 @@ function Reservar() {
                     : interpolate(t.maxNightsError, { nights: priceBreakdown.maxNights ?? 0 })}
                 </p>
               )}
-            </div>
+            </section>
           )}
 
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">{t.guestsCount}</label>
-            <input
-              type="number"
-              min={1}
-              max={6}
-              className="w-full border rounded px-3 py-2"
-              value={guestsCount}
-              onChange={(e) => {
-                const n = Number(e.target.value);
-                setGuestsCount(n);
-                resize(n);
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">{t.holderName}</label>
-            <input className="w-full border rounded px-3 py-2" value={guestName} onChange={(e) => setGuestName(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">{t.email}</label>
-            <input className="w-full border rounded px-3 py-2" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">{t.phone}</label>
-            <input className="w-full border rounded px-3 py-2" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} />
-          </div>
-
-          <div>
-            <label className="block text-sm text-gray-600 mb-1">{t.paymentMethod}</label>
-            <select
-              className="w-full border rounded px-3 py-2"
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card" | "transferencia")}
-            >
-              <option value="mbway">{t.payMbway}</option>
-              <option value="card">{t.payCard}</option>
-              <option value="transferencia">{t.payTransfer}</option>
-            </select>
-          </div>
+          <section className="rounded-xl border bg-white p-4 shadow-sm space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                {t.holderName}
+              </label>
+              <input
+                className="w-full border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                {t.email}
+              </label>
+              <input
+                type="email"
+                inputMode="email"
+                className="w-full border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                {t.phone}
+              </label>
+              <input
+                type="tel"
+                inputMode="tel"
+                className="w-full border rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">
+                {t.paymentMethod}
+              </label>
+              <select
+                className="w-full border rounded-lg px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-gray-900/10"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as "mbway" | "card" | "transferencia")}
+              >
+                <option value="mbway">{t.payMbway}</option>
+                <option value="card">{t.payCard}</option>
+                <option value="transferencia">{t.payTransfer}</option>
+              </select>
+            </div>
+          </section>
 
           {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <button
             onClick={handleBook}
             disabled={loading || datesUnavailable || !checkin || !checkout || invalidRange || nightsOutOfRange}
-            className="w-full bg-gray-900 text-white rounded py-3 font-medium disabled:opacity-50"
+            className="w-full bg-gray-900 text-white rounded-lg py-3.5 font-medium hover:bg-gray-800 transition-colors disabled:opacity-50"
           >
             {loading ? t.processing : t.continueToPayment}
           </button>
